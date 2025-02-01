@@ -1,0 +1,40 @@
+[env]
+TARGET = "aarch64-unknown-none"
+TOOLCHAIN_PREFIX = "aarch64-none-elf"
+ELF_BINARY = "target/${TARGET}/debug/mythos"
+DISK_IMAGE = "target/${TARGET}/debug/kernel8.img"
+
+[tasks.install-dependencies]
+script = '''
+rustup target add ${TARGET}
+cargo install cargo-binutils
+rustup component add llvm-tools-preview
+'''
+
+[tasks.clean]
+command = "cargo"
+args = ["clean"]
+
+[tasks.build]
+env = { "RUSTFLAGS" = "-D warnings -C link-args=-Lsrc -C link-args=-Tsrc/kernel.ld" }
+command = "cargo"
+args = ["build", "--target=${TARGET}"]
+dependencies = ["clean"]
+
+[tasks.objdump]
+command = "${TOOLCHAIN_PREFIX}-objdump"
+args = ["-d", "${ELF_BINARY}"]
+
+[tasks.readelf]
+command = "${TOOLCHAIN_PREFIX}-readelf"
+args = ["-a", "${ELF_BINARY}"]
+
+[tasks.image]
+command = "rust-objcopy"
+args = ["--strip-all", "-O", "binary", "${ELF_BINARY}", "${DISK_IMAGE}"]
+dependencies = ["build"]
+
+[tasks.qemu]
+command = "qemu-system-aarch64"
+args = ["-M", "raspi3b", "-kernel", "${DISK_IMAGE}"]
+dependencies = ["image"]
