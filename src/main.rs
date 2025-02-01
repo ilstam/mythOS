@@ -10,3 +10,8 @@ global_asm!(include_str!("boot.s"));
 fn panic(_info: &PanicInfo) -> ! {
     loop {}
 }
+
+#[no_mangle]
+pub fn main() -> ! {
+    loop {}
+}

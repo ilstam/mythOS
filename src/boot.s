@@ -3,6 +3,36 @@
 .global _start
 
 _start:
-.L_loop:
+	// Read the CPU ID. For RPi3 we just need to check Aff0.
+	mrs    x0, mpidr_el1
+	and    x0, x0, #7
+	// CPU0 can proceed, secondary CPUs must wait forever
+	cbz    x0, .L_primary_cpu
+
+.L_secondary_loop:
 	wfe
-	b      .L_loop
+	b      .L_secondary_loop
+
+.L_primary_cpu:
+	// Set the top of the stack at _start (stack grows downwards)
+	ldr    x0, =_start
+	mov    sp, x0
+
+	// Clear the BSS section
+	// The =symbol syntax is a pseudo-instruction that loads the address of
+	// the symbol into the register (rather than the value at that address in memory)
+	ldr    x0, =__bss_start
+	ldr    x1, =__bss_end
+.L_clear_bss:
+	// If start == end we are done
+	cmp    x0, x1
+	b.eq   .L_jump_to_rust
+	// Store 0s to [x0], then increment x0 by 8
+	str    xzr, [x0], #8
+	b      .L_clear_bss
+
+.L_jump_to_rust:
+	b      main
+
+	// main shouldn't return, but just in case...
+	b      .L_secondary_loop
