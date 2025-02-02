@@ -1,6 +1,8 @@
 #![no_main]
 #![no_std]
 
+mod logging;
+
 use core::arch::global_asm;
 use core::panic::PanicInfo;
 
@@ -15,12 +17,9 @@ fn panic(_info: &PanicInfo) -> ! {
 #[no_mangle]
 #[allow(clippy::empty_loop)]
 pub fn main() -> ! {
-    let string = "Hello, world!";
-    for c in string.chars() {
-        // SAFETY: We know that PL011 UART's data register is behind this address
-        unsafe {
-            core::ptr::write_volatile(0x3F201000 as *mut u8, c as u8);
-        }
-    }
+    let a = 4;
+    let b = 5;
+    println!("Hello {} with some math: {a} + {b} = {}", "world", a + b);
+
     loop {}
 }
