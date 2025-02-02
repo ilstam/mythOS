@@ -23,7 +23,11 @@ dependencies = ["clean"]
 
 [tasks.objdump]
 command = "${TOOLCHAIN_PREFIX}-objdump"
-args = ["-d", "${ELF_BINARY}"]
+args = ["-d", "--demangle", "${ELF_BINARY}"]
+
+[tasks.objdump-img]
+command = "${TOOLCHAIN_PREFIX}-objdump"
+args = ["-D", "--demangle", "-b", "binary", "-m", "aarch64", "${DISK_IMAGE}"]
 
 [tasks.readelf]
 command = "${TOOLCHAIN_PREFIX}-readelf"
