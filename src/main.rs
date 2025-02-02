@@ -15,5 +15,12 @@ fn panic(_info: &PanicInfo) -> ! {
 #[no_mangle]
 #[allow(clippy::empty_loop)]
 pub fn main() -> ! {
+    let string = "Hello, world!";
+    for c in string.chars() {
+        // SAFETY: We know that PL011 UART's data register is behind this address
+        unsafe {
+            core::ptr::write_volatile(0x3F201000 as *mut u8, c as u8);
+        }
+    }
     loop {}
 }

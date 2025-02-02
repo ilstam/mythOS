@@ -48,5 +48,5 @@ dependencies = ["build"]
 
 [tasks.qemu]
 command = "qemu-system-aarch64"
-args = ["-M", "raspi3b", "-kernel", "${DISK_IMAGE}"]
+args = ["-M", "raspi3b", "-kernel", "${DISK_IMAGE}", "-serial", "stdio", "-display", "none"]
 dependencies = ["image"]
