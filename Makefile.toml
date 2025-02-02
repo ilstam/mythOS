@@ -21,6 +21,14 @@ command = "cargo"
 args = ["build", "--target=${TARGET}"]
 dependencies = ["clean"]
 
+[tasks.clippy]
+command = "cargo"
+args = ["clippy", "--target=${TARGET}"]
+
+[tasks.fmt]
+command = "cargo"
+args = ["fmt"]
+
 [tasks.objdump]
 command = "${TOOLCHAIN_PREFIX}-objdump"
 args = ["-d", "--demangle", "${ELF_BINARY}"]
