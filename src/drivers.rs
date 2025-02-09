@@ -21,6 +21,10 @@ impl<T> MMIORegisters<T> {
             phantom: PhantomData,
         }
     }
+
+    pub const fn base_addr(self) -> AddressPhysical {
+        self.base
+    }
 }
 
 impl<T> ops::Deref for MMIORegisters<T> {
