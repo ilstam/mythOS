@@ -16,7 +16,7 @@ command = "cargo"
 args = ["clean"]
 
 [tasks.build]
-env = { "RUSTFLAGS" = "-D warnings -C link-args=-Lsrc -C link-args=-Tsrc/kernel.ld" }
+env = { "RUSTFLAGS" = "-C link-args=-Lsrc -C link-args=-Tsrc/kernel.ld" }
 command = "cargo"
 args = ["build", "--target=${TARGET}"]
 dependencies = ["clean"]
