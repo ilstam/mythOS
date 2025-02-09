@@ -48,5 +48,6 @@ dependencies = ["build"]
 
 [tasks.qemu]
 command = "qemu-system-aarch64"
-args = ["-M", "raspi3b", "-kernel", "${DISK_IMAGE}", "-serial", "stdio", "-display", "none"]
+# The first -serial argument corresponds to UART0 (PL011) and the second -serial argument to UART1 (mini UART)
+args = ["-M", "raspi3b", "-kernel", "${DISK_IMAGE}", "-serial", "null", "-serial", "stdio", "-display", "none"]
 dependencies = ["image"]

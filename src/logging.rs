@@ -1,3 +1,4 @@
+use crate::drivers::uart_mini;
 use core::arch::asm;
 use core::panic::PanicInfo;
 use core::sync::atomic::{AtomicBool, Ordering};
@@ -6,11 +7,11 @@ pub struct SerialConsole;
 
 impl core::fmt::Write for SerialConsole {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        for byte in s.bytes() {
-            // SAFETY: We know that PL011 UART's data register is behind this address
-            unsafe {
-                core::ptr::write_volatile(0x3F201000 as *mut u8, byte);
+        for c in s.chars() {
+            if c == '\n' {
+                uart_mini::put_char('\r');
             }
+            uart_mini::put_char(c);
         }
         Ok(())
     }
