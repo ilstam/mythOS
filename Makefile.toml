@@ -1,5 +1,5 @@
 [env]
-TARGET = "aarch64-unknown-none"
+TARGET = "aarch64-unknown-none-softfloat"
 TOOLCHAIN_PREFIX = "aarch64-none-elf"
 ELF_BINARY = "target/${TARGET}/debug/mythos"
 DISK_IMAGE = "target/${TARGET}/debug/kernel8.img"
