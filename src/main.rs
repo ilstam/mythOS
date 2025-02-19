@@ -2,6 +2,7 @@
 #![no_std]
 
 mod drivers;
+mod exceptions;
 mod logging;
 
 use aarch64_cpu::asm;
@@ -49,6 +50,7 @@ pub fn jump_to_el1() {
 #[no_mangle]
 pub fn main() -> ! {
     jump_to_el1();
+    exceptions::install_exception_table();
 
     uart_mini::init(115200);
 
