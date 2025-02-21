@@ -41,6 +41,10 @@ args = ["-D", "--demangle", "-b", "binary", "-m", "aarch64", "${DISK_IMAGE}"]
 command = "${TOOLCHAIN_PREFIX}-readelf"
 args = ["-a", "${ELF_BINARY}"]
 
+[tasks.nm]
+command = "${TOOLCHAIN_PREFIX}-nm"
+args = ["${ELF_BINARY}"]
+
 [tasks.image]
 command = "rust-objcopy"
 args = ["--strip-all", "-O", "binary", "${ELF_BINARY}", "${DISK_IMAGE}"]
