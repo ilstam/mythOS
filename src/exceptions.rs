@@ -7,6 +7,27 @@ extern "C" {
     static __exception_table: usize;
 }
 
+#[repr(C)]
+// NOTE: The exception handler in exceptions.s expects this layout and size of
+// the struct. If anything changes here the assembly routines will need to be
+// updated too. The size assertion below just serves as a reminder in case the
+// struct is extended.
+struct ExceptionFrame {
+    regs: [u64; 31],
+    spsr_el1: u64,
+    elr_el1: u64,
+    esr_el1: u64,
+}
+
+// TODO: Define the size in assembly and write a build script that generates
+// a Rust file with a const variable.
+const _: () = {
+    assert!(
+        core::mem::size_of::<ExceptionFrame>() == 34 * 8,
+        "Exception frame size is wrong"
+    );
+};
+
 global_asm!(include_str!("exceptions.s"));
 
 pub fn install_exception_table() {
@@ -17,81 +38,81 @@ pub fn install_exception_table() {
 }
 
 #[no_mangle]
-extern "C" fn el1_sp0_sync_handler() {
+extern "C" fn el1_sp0_sync_handler(_eframe: &mut ExceptionFrame) {
     panic!("Unexpected synchronous exception from the current EL while using SP_EL0");
 }
 
 #[no_mangle]
-extern "C" fn el1_sp0_irq_handler() {
+extern "C" fn el1_sp0_irq_handler(_eframe: &mut ExceptionFrame) {
     panic!("Unexpected IRQ from the current EL while using SP_EL0");
 }
 
 #[no_mangle]
-extern "C" fn el1_sp0_fiq_handler() {
+extern "C" fn el1_sp0_fiq_handler(_eframe: &mut ExceptionFrame) {
     panic!("Unexpected FIQ from the current EL while using SP_EL0");
 }
 
 #[no_mangle]
-extern "C" fn el1_sp0_serror_handler() {
+extern "C" fn el1_sp0_serror_handler(_eframe: &mut ExceptionFrame) {
     panic!("Unexpected SError exception from the current EL while using SP_EL0");
 }
 
 #[no_mangle]
-extern "C" fn el1_sp1_sync_handler() {
+extern "C" fn el1_sp1_sync_handler(_eframe: &mut ExceptionFrame) {
     panic!("Unexpected synchronous exception from the current EL while using SP_EL1");
 }
 
 #[no_mangle]
-extern "C" fn el1_sp1_irq_handler() {
+extern "C" fn el1_sp1_irq_handler(_eframe: &mut ExceptionFrame) {
     panic!("Unexpected IRQ from the current EL while using SP_EL1");
 }
 
 #[no_mangle]
-extern "C" fn el1_sp1_fiq_handler() {
+extern "C" fn el1_sp1_fiq_handler(_eframe: &mut ExceptionFrame) {
     panic!("Unexpected FIQ from the current EL while using SP_EL1");
 }
 
 #[no_mangle]
-extern "C" fn el1_sp1_serror_handler() {
+extern "C" fn el1_sp1_serror_handler(_eframe: &mut ExceptionFrame) {
     panic!("Unexpected SError exception from the current EL while using SP_EL1");
 }
 
 #[no_mangle]
-extern "C" fn el0_64_sync_handler() {
+extern "C" fn el0_64_sync_handler(_eframe: &mut ExceptionFrame) {
     panic!("Unexpected synchronous exception from EL0 AArch64");
 }
 
 #[no_mangle]
-extern "C" fn el0_64_irq_handler() {
+extern "C" fn el0_64_irq_handler(_eframe: &mut ExceptionFrame) {
     panic!("Unexpected IRQ from EL0 AArch64");
 }
 
 #[no_mangle]
-extern "C" fn el0_64_fiq_handler() {
+extern "C" fn el0_64_fiq_handler(_eframe: &mut ExceptionFrame) {
     panic!("Unexpected FIQ from EL0 AArch64");
 }
 
 #[no_mangle]
-extern "C" fn el0_64_serror_handler() {
+extern "C" fn el0_64_serror_handler(_eframe: &mut ExceptionFrame) {
     panic!("Unexpected SError exception from EL0 AArch64");
 }
 
 #[no_mangle]
-extern "C" fn el0_32_sync_handler() {
+extern "C" fn el0_32_sync_handler(_eframe: &mut ExceptionFrame) {
     panic!("Unexpected synchronous exception from EL0 AArch32");
 }
 
 #[no_mangle]
-extern "C" fn el0_32_irq_handler() {
+extern "C" fn el0_32_irq_handler(_eframe: &mut ExceptionFrame) {
     panic!("Unexpected IRQ from EL0 AArch32");
 }
 
 #[no_mangle]
-extern "C" fn el0_32_fiq_handler() {
+extern "C" fn el0_32_fiq_handler(_eframe: &mut ExceptionFrame) {
     panic!("Unexpected FIQ from EL0 AArch32");
 }
 
 #[no_mangle]
-extern "C" fn el0_32_serror_handler() {
+extern "C" fn el0_32_serror_handler(_eframe: &mut ExceptionFrame) {
     panic!("Unexpected SError exception from EL0 AArch32");
 }
