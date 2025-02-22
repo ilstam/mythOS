@@ -1,6 +1,7 @@
-use aarch64_cpu::registers::VBAR_EL1;
+use aarch64_cpu::registers::{ESR_EL1, FAR_EL1, VBAR_EL1};
 use core::arch::global_asm;
-use tock_registers::interfaces::Writeable;
+use tock_registers::interfaces::{Readable, Writeable};
+use tock_registers::LocalRegisterCopy;
 
 // NOTE: It's the symbol's address we are interested in, not the value stored there
 extern "C" {
@@ -58,8 +59,18 @@ extern "C" fn el1_sp0_serror_handler(_eframe: &mut ExceptionFrame) {
 }
 
 #[no_mangle]
-extern "C" fn el1_sp1_sync_handler(_eframe: &mut ExceptionFrame) {
-    panic!("Unexpected synchronous exception from the current EL while using SP_EL1");
+extern "C" fn el1_sp1_sync_handler(eframe: &mut ExceptionFrame) {
+    let esr = LocalRegisterCopy::<u64, ESR_EL1::Register>::new(eframe.esr_el1);
+
+    match esr.read_as_enum::<ESR_EL1::EC::Value>(ESR_EL1::EC) {
+        Some(ESR_EL1::EC::Value::DataAbortCurrentEL) => {
+            panic!("Data abort at address {:#x}", FAR_EL1.get())
+        }
+        Some(ESR_EL1::EC::Value::InstrAbortCurrentEL) => {
+            panic!("Instruction abort at address {:#x}", FAR_EL1.get())
+        }
+        _ => panic!("Unexpected synchronous exception from the current EL while using SP_EL1, ESR_EL1.EC={:#b}", esr.read(ESR_EL1::EC)),
+    };
 }
 
 #[no_mangle]
