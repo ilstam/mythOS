@@ -1,4 +1,6 @@
 use crate::drivers::interrupt_controller;
+use aarch64_cpu::registers::DAIF;
+use tock_registers::interfaces::ReadWriteable;
 
 #[allow(dead_code)]
 pub enum IRQ {
@@ -49,4 +51,15 @@ pub fn enable_irq(irq: IRQ) {
 #[inline]
 pub fn disable_irq(irq: IRQ) {
     interrupt_controller::disable_irq(irq);
+}
+
+#[inline]
+pub fn enable_interrupts() {
+    DAIF.modify(DAIF::D::Unmasked + DAIF::A::Unmasked + DAIF::I::Unmasked + DAIF::F::Unmasked);
+}
+
+#[allow(dead_code)]
+#[inline]
+pub fn disable_interrupts() {
+    DAIF.modify(DAIF::D::Masked + DAIF::A::Masked + DAIF::I::Masked + DAIF::F::Masked);
 }

@@ -160,6 +160,7 @@ pub fn init(baud_rate: u32) {
     // RXD1
     GPIOPin::new(15).select_mode(gpio::PinMode::ALT5);
 
+    REGS.AUX_MU_IER.modify(AUX_MU_IER::ENABLE_RX_IRQ::SET);
     enable_irq(IRQ::GPU(GPU_IRQ::AUX));
 
     // Setup is complete, enable RX/TX
@@ -175,8 +176,5 @@ pub fn put_char(c: char) {
 }
 
 pub fn get_char() -> char {
-    while !REGS.AUX_MU_LSR.is_set(AUX_MU_LSR::DATA_READY) {
-        // Wait until there's data
-    }
     REGS.AUX_MU_IO_DATA.get() as char
 }

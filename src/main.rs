@@ -52,6 +52,7 @@ pub fn jump_to_el1() {
 pub fn main() -> ! {
     jump_to_el1();
     exceptions::install_exception_table();
+    irq::enable_interrupts();
 
     uart_mini::init(115200);
 
@@ -60,10 +61,6 @@ pub fn main() -> ! {
     println!("Hello {} with some math: {a} + {b} = {}", "world", a + b);
 
     loop {
-        let c = uart_mini::get_char();
-        uart_mini::put_char(c);
-        if c == '\r' {
-            uart_mini::put_char('\n');
-        }
+        asm::wfi();
     }
 }

@@ -1,3 +1,4 @@
+use crate::drivers::uart_mini;
 use aarch64_cpu::registers::{ESR_EL1, FAR_EL1, VBAR_EL1};
 use core::arch::global_asm;
 use tock_registers::interfaces::{Readable, Writeable};
@@ -75,7 +76,12 @@ extern "C" fn el1_sp1_sync_handler(eframe: &mut ExceptionFrame) {
 
 #[no_mangle]
 extern "C" fn el1_sp1_irq_handler(_eframe: &mut ExceptionFrame) {
-    panic!("Unexpected IRQ from the current EL while using SP_EL1");
+    // NOTE: For now we assume that the interrupt was generated from the mini UART
+    let c = uart_mini::get_char();
+    uart_mini::put_char(c);
+    if c == '\r' {
+        uart_mini::put_char('\n');
+    }
 }
 
 #[no_mangle]
