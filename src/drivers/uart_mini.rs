@@ -3,6 +3,7 @@
 // out like a 16550 UART and the UART core is build to emulate 16550 behaviour.
 
 use crate::drivers::{gpio, gpio::GPIOPin, MMIORegisters, PERIPHERALS_BASE};
+use crate::irq::{enable_irq, GPU_IRQ, IRQ};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::registers::{Aliased, ReadOnly, ReadWrite};
 use tock_registers::{register_bitfields, register_structs};
@@ -158,6 +159,8 @@ pub fn init(baud_rate: u32) {
     GPIOPin::new(14).select_mode(gpio::PinMode::ALT5);
     // RXD1
     GPIOPin::new(15).select_mode(gpio::PinMode::ALT5);
+
+    enable_irq(IRQ::GPU(GPU_IRQ::AUX));
 
     // Setup is complete, enable RX/TX
     REGS.AUX_MU_CNTL

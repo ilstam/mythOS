@@ -1,4 +1,5 @@
 pub mod gpio;
+pub mod interrupt_controller;
 pub mod uart_mini;
 
 use core::{marker::PhantomData, ops};
