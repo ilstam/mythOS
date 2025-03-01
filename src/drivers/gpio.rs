@@ -2,7 +2,7 @@ use crate::drivers::{MMIORegisters, PERIPHERALS_BASE};
 use core;
 use tock_registers::interfaces::Writeable;
 use tock_registers::register_structs;
-use tock_registers::registers::{ReadWrite, WriteOnly};
+use tock_registers::registers::WriteOnly;
 
 #[allow(dead_code)]
 pub(crate) enum PinMode {
@@ -27,8 +27,7 @@ const REGS: MMIORegisters<GPIORegisters> =
 register_structs! {
     #[allow(non_snake_case)]
     GPIORegisters {
-        (0x000 => GPFSEL0: ReadWrite<u32>),
-        (0x004 => _reserved0),
+        (0x000 => _reserved0),
         (0x01c => GPSET0: WriteOnly<u32>),
         (0x020 => GPSET1: WriteOnly<u32>),
         (0x024 => _reserved1),
