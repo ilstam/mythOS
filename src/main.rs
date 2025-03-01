@@ -4,6 +4,7 @@
 mod drivers;
 mod exceptions;
 mod irq;
+mod locking;
 mod logging;
 
 use aarch64_cpu::asm;

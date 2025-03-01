@@ -1,4 +1,5 @@
 use crate::drivers::{MMIORegisters, PERIPHERALS_BASE};
+use crate::locking::SpinLock;
 use core;
 use tock_registers::interfaces::Writeable;
 use tock_registers::register_structs;
@@ -23,6 +24,11 @@ pub(crate) struct GPIOPin {
 // SAFETY: There should a be a GPIO module behind that address as per BMC2837
 const REGS: MMIORegisters<GPIORegisters> =
     unsafe { MMIORegisters::<GPIORegisters>::new(PERIPHERALS_BASE + 0x20_0000) };
+
+// This spinlock should protect accesses to all GPFSELX registers. This isn't
+// how SpinLock is supposed to be used normally, but I couldn't figure out how
+// to make it protect only a certain field of the GPIORegisters struct.
+static GPFSELX_SPINLOCK: SpinLock<()> = SpinLock::new(());
 
 register_structs! {
     #[allow(non_snake_case)]
@@ -53,9 +59,9 @@ impl GPIOPin {
         let field_index = self.pin as usize % 10;
         let gpfselx = REGS.base_addr() + reg_index * 4;
 
+        let _lock = GPFSELX_SPINLOCK.lock();
         // SAFETY: We trust there's a GPFEL register behind that address and
         // that the calculation above is correct.
-        // TODO: Guard this read/write operation with a mutex
         let mut value = unsafe { core::ptr::read_volatile(gpfselx as *const u32) };
 
         // Clear FSELx
