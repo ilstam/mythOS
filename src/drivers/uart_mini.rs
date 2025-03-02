@@ -178,3 +178,11 @@ pub fn put_char(c: char) {
 pub fn get_char() -> char {
     REGS.AUX_MU_IO_DATA.get() as char
 }
+
+pub fn process_rx_irq() {
+    let c = get_char();
+    put_char(c);
+    if c == '\r' {
+        put_char('\n');
+    }
+}

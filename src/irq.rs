@@ -1,4 +1,5 @@
-use crate::drivers::interrupt_controller;
+use crate::drivers::uart_mini;
+use crate::drivers::{interrupt_controller, interrupt_controller::PendingIrqs};
 use aarch64_cpu::registers::DAIF;
 use tock_registers::interfaces::ReadWriteable;
 
@@ -40,6 +41,17 @@ pub enum GpuIrq {
     Uart = 57,
 }
 
+impl TryFrom<u32> for GpuIrq {
+    type Error = ();
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            29 => Ok(GpuIrq::Aux),
+            _ => Err(()),
+        }
+    }
+}
+
 #[inline]
 pub fn enable_irq(irq: Irq) {
     interrupt_controller::enable_irq(irq);
@@ -59,4 +71,28 @@ pub fn enable_interrupts() {
 #[inline]
 pub fn disable_interrupts() {
     DAIF.modify(DAIF::D::Masked + DAIF::A::Masked + DAIF::I::Masked + DAIF::F::Masked);
+}
+
+pub fn process_irqs() {
+    let PendingIrqs { mut gpu, arm } = interrupt_controller::pending_irqs();
+
+    // TODO: Allow drivers to register handlers dynamically
+    while gpu != 0 {
+        let lowest_set_bit = gpu.trailing_zeros();
+        match GpuIrq::try_from(lowest_set_bit) {
+            Ok(GpuIrq::Aux) => {
+                uart_mini::process_rx_irq();
+            }
+            _ => {
+                panic!("Unexpected GPU IRQ {lowest_set_bit}")
+            }
+        }
+
+        // Clear the lowest set bit
+        gpu &= !(1 << lowest_set_bit);
+    }
+
+    if arm != 0 {
+        panic!("Unexpected ARM IRQ(s), pending_mask={arm}");
+    }
 }

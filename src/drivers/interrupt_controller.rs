@@ -2,7 +2,7 @@
 
 use crate::drivers::{MMIORegisters, PERIPHERALS_BASE};
 use crate::irq::Irq;
-use tock_registers::interfaces::Writeable;
+use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::register_structs;
 use tock_registers::registers::{ReadOnly, ReadWrite};
 
@@ -60,4 +60,15 @@ pub fn disable_irq(irq: Irq) {
             }
         }
     }
+}
+
+pub struct PendingIrqs {
+    pub gpu: u64,
+    pub arm: u8,
+}
+
+pub fn pending_irqs() -> PendingIrqs {
+    let gpu = REGS.IRQ_PENDING1.get() as u64 | (REGS.IRQ_PENDING2.get() as u64 >> 32);
+    let arm = REGS.IRQ_BASIC_PENDING.get() as u8;
+    PendingIrqs { gpu, arm }
 }
