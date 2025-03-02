@@ -19,7 +19,6 @@ args = ["clean"]
 env = { "RUSTFLAGS" = "-C link-args=-Lsrc -C link-args=-Tsrc/kernel.ld" }
 command = "cargo"
 args = ["build", "--target=${TARGET}"]
-dependencies = ["clean"]
 
 [tasks.clippy]
 command = "cargo"
