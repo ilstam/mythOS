@@ -4,6 +4,8 @@
 
 use crate::drivers::{gpio, gpio::GPIOPin, MMIORegisters, PERIPHERALS_BASE};
 use crate::irq::{enable_irq, GpuIrq, Irq};
+use crate::locking::IRQSpinLock;
+use crate::{ACTIONS, PENDING_ACTIONS};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::registers::{Aliased, ReadOnly, ReadWrite};
 use tock_registers::{register_bitfields, register_structs};
@@ -11,6 +13,25 @@ use tock_registers::{register_bitfields, register_structs};
 // SAFETY: There should a be a mini UART behind that address as per BMC2837
 const REGS: MMIORegisters<AuxRegisters> =
     unsafe { MMIORegisters::<AuxRegisters>::new(PERIPHERALS_BASE + 0x21_5000) };
+
+const RX_BUFFER_LEN: usize = 128;
+
+#[derive(Copy, Clone)]
+struct RxBuffer {
+    // Circular buffer.
+    // Old characters will be dropped if we can't process them fast enough.
+    buffer: [char; RX_BUFFER_LEN],
+    // Index pointing to the slot where the next character will go to
+    tail: usize,
+    // Number of characters in the buffer
+    num_chars: usize,
+}
+
+static RX_BUFFER: IRQSpinLock<RxBuffer> = IRQSpinLock::new(RxBuffer {
+    buffer: ['\0'; RX_BUFFER_LEN],
+    tail: 0,
+    num_chars: 0,
+});
 
 register_bitfields! {
     u32,
@@ -180,9 +201,45 @@ pub fn get_char() -> char {
 }
 
 pub fn process_rx_irq() {
-    let c = get_char();
-    put_char(c);
-    if c == '\r' {
-        put_char('\n');
+    let pending_rx_chars = REGS.AUX_MU_STAT.read(AUX_MU_STAT::RX_FIFO_FILL_LVL);
+    let mut rx_buffer = RX_BUFFER.lock();
+
+    for _ in 0..pending_rx_chars {
+        let tail = rx_buffer.tail;
+        rx_buffer.buffer[tail] = get_char();
+        rx_buffer.tail = (tail + 1) % RX_BUFFER_LEN;
+        rx_buffer.num_chars = (rx_buffer.num_chars + 1).min(RX_BUFFER_LEN);
+    }
+
+    drop(rx_buffer);
+
+    let mut actions = PENDING_ACTIONS.lock();
+    *actions |= 1 << (ACTIONS::UartAction as u64);
+}
+
+// This is the bottom half of the RX IRQ handler that runs outside interrupt context
+pub fn process_pending_chars() {
+    let mut rx_buffer = RX_BUFFER.lock();
+    // Copy and reset the buffer
+    let buffer = *rx_buffer;
+    rx_buffer.num_chars = 0;
+    // And release the lock before processing it so that interrupts are enabled again
+    drop(rx_buffer);
+
+    let mut start = if buffer.num_chars <= buffer.tail {
+        buffer.tail - buffer.num_chars
+    } else {
+        RX_BUFFER_LEN - (buffer.num_chars - buffer.tail)
+    };
+
+    let mut num_chars = buffer.num_chars;
+    while num_chars > 0 {
+        let c = buffer.buffer[start];
+        put_char(c);
+        if c == '\r' {
+            put_char('\n');
+        }
+        start = (start + 1) % RX_BUFFER_LEN;
+        num_chars -= 1;
     }
 }

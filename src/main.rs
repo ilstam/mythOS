@@ -7,6 +7,7 @@ mod irq;
 mod locking;
 mod logging;
 
+use crate::locking::IRQSpinLock;
 use aarch64_cpu::asm;
 use aarch64_cpu::registers::{CurrentEL, ELR_EL2, HCR_EL2, SPSR_EL2, SP_EL1};
 use core::arch::global_asm;
@@ -19,6 +20,12 @@ extern "C" {
 }
 
 global_asm!(include_str!("boot.s"));
+
+pub static PENDING_ACTIONS: IRQSpinLock<u64> = IRQSpinLock::new(0);
+
+pub enum ACTIONS {
+    UartAction = 0,
+}
 
 pub fn jump_to_el1() {
     match CurrentEL.read(CurrentEL::EL) {
@@ -62,6 +69,28 @@ pub fn main() -> ! {
     println!("Hello {} with some math: {a} + {b} = {}", "world", a + b);
 
     loop {
+        loop {
+            irq::disable_interrupts();
+
+            let mut actions = PENDING_ACTIONS.lock();
+            let pending = *actions;
+            if pending == 0 {
+                break;
+            }
+            *actions = 0;
+            drop(actions);
+
+            // Interrupts must be enabled while we process pending actions
+            irq::enable_interrupts();
+
+            if pending & (1 << (ACTIONS::UartAction as u64)) != 0 {
+                uart_mini::process_pending_chars();
+            }
+        }
+
+        // When we get here interrupts must be disabled, otherwise an interrupt
+        // could arrive just before the WFI but after we checked for pending actions
         asm::wfi();
+        irq::enable_interrupts();
     }
 }
