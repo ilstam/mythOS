@@ -1,7 +1,7 @@
 // This is a driver for the interrupt controller included in BMC2837
 
 use crate::drivers::{MMIORegisters, PERIPHERALS_BASE};
-use crate::irq::IRQ;
+use crate::irq::Irq;
 use tock_registers::interfaces::Writeable;
 use tock_registers::register_structs;
 use tock_registers::registers::{ReadOnly, ReadWrite};
@@ -27,12 +27,12 @@ register_structs! {
     }
 }
 
-pub fn enable_irq(irq: IRQ) {
+pub fn enable_irq(irq: Irq) {
     match irq {
-        IRQ::ARM(irq) => {
+        Irq::Arm(irq) => {
             REGS.ENABLE_IRQ_BASIC.set(1 << (irq as u32));
         }
-        IRQ::GPU(irq) => {
+        Irq::Gpu(irq) => {
             let irq = irq as u32;
             if irq < 32 {
                 REGS.ENABLE_IRQ1.set(1 << irq);
@@ -45,12 +45,12 @@ pub fn enable_irq(irq: IRQ) {
 }
 
 #[allow(dead_code)]
-pub fn disable_irq(irq: IRQ) {
+pub fn disable_irq(irq: Irq) {
     match irq {
-        IRQ::ARM(irq) => {
+        Irq::Arm(irq) => {
             REGS.DISABLE_BASIC_IRQ.set(1 << (irq as u32));
         }
-        IRQ::GPU(irq) => {
+        Irq::Gpu(irq) => {
             let irq = irq as u32;
             if irq < 32 {
                 REGS.DISABLE_IRQ1.set(1 << irq);
