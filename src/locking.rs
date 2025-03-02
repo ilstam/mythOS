@@ -1,6 +1,10 @@
+use crate::irq;
+use aarch64_cpu::registers::DAIF;
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicBool, Ordering};
+use tock_registers::interfaces::{Readable, Writeable};
 
+/// Spinlock that is never used from interrupt context
 pub struct SpinLock<T> {
     lock: AtomicBool,
     data: UnsafeCell<T>,
@@ -62,5 +66,77 @@ impl<T> core::ops::DerefMut for LockGuard<'_, T> {
 impl<T> Drop for LockGuard<'_, T> {
     fn drop(&mut self) {
         self.lock.lock.store(false, Ordering::Release);
+    }
+}
+
+/// Spinlock that can be used from interrupt context
+pub struct IRQSpinLock<T> {
+    lock: AtomicBool,
+    data: UnsafeCell<T>,
+}
+
+// SAFETY: Same as for SpinLock
+unsafe impl<T: Send> Sync for IRQSpinLock<T> {}
+
+#[allow(dead_code)]
+impl<T> IRQSpinLock<T> {
+    pub const fn new(data: T) -> Self {
+        Self {
+            lock: AtomicBool::new(false),
+            data: UnsafeCell::new(data),
+        }
+    }
+
+    pub fn lock(&self) -> IRQLockGuard<T> {
+        let mut daif = DAIF.get();
+        irq::disable_interrupts();
+
+        while self.lock.swap(true, Ordering::Acquire) {
+            DAIF.set(daif);
+
+            while self.lock.load(Ordering::Relaxed) {
+                core::hint::spin_loop();
+            }
+
+            daif = DAIF.get();
+            irq::disable_interrupts();
+        }
+
+        IRQLockGuard {
+            lock: self,
+            old_daif: daif,
+        }
+    }
+}
+
+// The lifetime annotation means that the IRQLockGuard can't outlive the spinlock
+pub struct IRQLockGuard<'a, T> {
+    lock: &'a IRQSpinLock<T>,
+    // The value of DAIF before the IRQLockGuard instance was created
+    old_daif: u64,
+}
+
+impl<T> core::ops::Deref for IRQLockGuard<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        // SAFETY: The only way to create a IRQLockGuard instance is by calling
+        // IRQSpinLock::lock(), hence exclusive access is guaranteed here
+        unsafe { &*self.lock.data.get() }
+    }
+}
+
+impl<T> core::ops::DerefMut for IRQLockGuard<'_, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        // SAFETY: The only way to create a IRQLockGuard instance is by calling
+        // IRQSpinLock::lock(), hence exclusive access is guaranteed here
+        unsafe { &mut *self.lock.data.get() }
+    }
+}
+
+impl<T> Drop for IRQLockGuard<'_, T> {
+    fn drop(&mut self) {
+        self.lock.lock.store(false, Ordering::Release);
+        DAIF.set(self.old_daif);
     }
 }

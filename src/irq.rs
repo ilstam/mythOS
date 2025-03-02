@@ -58,7 +58,6 @@ pub fn enable_interrupts() {
     DAIF.modify(DAIF::D::Unmasked + DAIF::A::Unmasked + DAIF::I::Unmasked + DAIF::F::Unmasked);
 }
 
-#[allow(dead_code)]
 #[inline]
 pub fn disable_interrupts() {
     DAIF.modify(DAIF::D::Masked + DAIF::A::Masked + DAIF::I::Masked + DAIF::F::Masked);
