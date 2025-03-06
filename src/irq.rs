@@ -1,6 +1,7 @@
 use crate::drivers::uart_mini;
 use crate::drivers::{interrupt_controller, interrupt_controller::PendingIrqs};
 use aarch64_cpu::registers::DAIF;
+use core::sync::atomic::{compiler_fence, Ordering};
 use tock_registers::interfaces::ReadWriteable;
 
 #[allow(dead_code)]
@@ -65,12 +66,20 @@ pub fn disable_irq(irq: Irq) {
 
 #[inline]
 pub fn enable_interrupts() {
+    // No H/W barriers are needed when writing PSTATE fields, but compiler
+    // barriers are still required.
+    compiler_fence(Ordering::SeqCst);
     DAIF.modify(DAIF::D::Unmasked + DAIF::A::Unmasked + DAIF::I::Unmasked + DAIF::F::Unmasked);
+    compiler_fence(Ordering::SeqCst);
 }
 
 #[inline]
 pub fn disable_interrupts() {
+    // No H/W barriers are needed when writing PSTATE fields, but compiler
+    // barriers are still required.
+    compiler_fence(Ordering::SeqCst);
     DAIF.modify(DAIF::D::Masked + DAIF::A::Masked + DAIF::I::Masked + DAIF::F::Masked);
+    compiler_fence(Ordering::SeqCst);
 }
 
 pub fn process_irqs() {
