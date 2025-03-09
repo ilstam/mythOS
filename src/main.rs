@@ -6,6 +6,7 @@ mod exceptions;
 mod irq;
 mod locking;
 mod logging;
+mod paging;
 
 use crate::locking::IRQSpinLock;
 use aarch64_cpu::asm;
@@ -59,6 +60,7 @@ pub fn jump_to_el1() {
 #[no_mangle]
 pub fn main() -> ! {
     jump_to_el1();
+    paging::setup_paging();
     exceptions::install_exception_table();
     irq::enable_interrupts();
 
