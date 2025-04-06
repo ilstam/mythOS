@@ -15,14 +15,12 @@ _start:
 
 .L_primary_cpu:
 	// Set the top of the stack at _start (stack grows downwards)
-	ldr    x0, =_start
+	adr    x0, _start
 	mov    sp, x0
 
 	// Clear the BSS section
-	// The =symbol syntax is a pseudo-instruction that loads the address of
-	// the symbol into the register (rather than the value at that address in memory)
-	ldr    x0, =__bss_start
-	ldr    x1, =__bss_end
+	adr    x0, __bss_start
+	adr    x1, __bss_end
 .L_clear_bss:
 	// If start == end we are done
 	cmp    x0, x1
