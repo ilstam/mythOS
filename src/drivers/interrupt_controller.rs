@@ -8,7 +8,7 @@ use tock_registers::registers::{ReadOnly, ReadWrite};
 
 // SAFETY: There should an interrupt controller behind that address as per BMC2837
 const REGS: MMIORegisters<ICRegisters> =
-    unsafe { MMIORegisters::<ICRegisters>::new(PERIPHERALS_BASE + 0xB000 + 0x200) };
+    unsafe { MMIORegisters::<ICRegisters>::new(PERIPHERALS_BASE.add(0xB000 + 0x200)) };
 
 register_structs! {
     #[allow(non_snake_case)]

@@ -12,7 +12,7 @@ use tock_registers::{register_bitfields, register_structs};
 
 // SAFETY: There should a be a mini UART behind that address as per BMC2837
 const REGS: MMIORegisters<AuxRegisters> =
-    unsafe { MMIORegisters::<AuxRegisters>::new(PERIPHERALS_BASE + 0x21_5000) };
+    unsafe { MMIORegisters::<AuxRegisters>::new(PERIPHERALS_BASE.add(0x21_5000)) };
 
 const RX_BUFFER_LEN: usize = 128;
 

@@ -6,6 +6,7 @@ mod exceptions;
 mod irq;
 mod locking;
 mod logging;
+mod memory;
 mod paging;
 
 use crate::locking::IRQSpinLock;

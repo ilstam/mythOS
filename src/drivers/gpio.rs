@@ -23,7 +23,7 @@ pub(crate) struct GPIOPin {
 
 // SAFETY: There should a be a GPIO module behind that address as per BMC2837
 const REGS: MMIORegisters<GPIORegisters> =
-    unsafe { MMIORegisters::<GPIORegisters>::new(PERIPHERALS_BASE + 0x20_0000) };
+    unsafe { MMIORegisters::<GPIORegisters>::new(PERIPHERALS_BASE.add(0x20_0000)) };
 
 // This spinlock should protect accesses to all GPFSELX registers. This isn't
 // how SpinLock is supposed to be used normally, but I couldn't figure out how
@@ -57,7 +57,7 @@ impl GPIOPin {
         let reg_index = self.pin as usize / 10;
         // Used to pick a field from FSEL0 to FSEL9 inside a GPFSELX register
         let field_index = self.pin as usize % 10;
-        let gpfselx = REGS.base_addr() + reg_index * 4;
+        let gpfselx = REGS.base_addr().as_u64() + reg_index as u64 * 4;
 
         let _lock = GPFSELX_SPINLOCK.lock();
         // SAFETY: We trust there's a GPFEL register behind that address and
