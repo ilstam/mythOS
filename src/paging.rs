@@ -1,12 +1,12 @@
 use crate::locking::SpinLock;
+use crate::memory::MiB;
 use aarch64_cpu::asm::barrier;
-use aarch64_cpu::registers::{ID_AA64MMFR0_EL1, MAIR_EL1, SCTLR_EL1, TCR_EL1, TTBR0_EL1};
+use aarch64_cpu::registers::{
+    ID_AA64MMFR0_EL1, MAIR_EL1, SCTLR_EL1, TCR_EL1, TTBR0_EL1, TTBR1_EL1,
+};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 use tock_registers::registers::InMemoryRegister;
-
-#[allow(non_upper_case_globals)]
-const MiB: u64 = 1 << 20;
 
 register_bitfields! {
     u64,
@@ -47,6 +47,10 @@ static L2_PT: SpinLock<PageTable> = SpinLock::new(PageTable { pte: [0; 512] });
 // MiB are device memory (even though in reality only the top 16MiB are device
 // memory). This lets us get a way with a single L2 page table with 2 block
 // descriptor entries, each mapping 512 MiB and no L3 tables.
+//
+// The same root page table is used by both TTBR0 and TTBR1 which means that
+// the same physical memory can be accessed using either low virtual addresses
+// [0, 0x3fffffff] or high addresses [0xffffffffc0000000, 0xffffffffffffffff].
 pub fn setup_paging() {
     let id_aa64mmfr0 = ID_AA64MMFR0_EL1.extract();
     if id_aa64mmfr0.read(ID_AA64MMFR0_EL1::TGran64) != ID_AA64MMFR0_EL1::TGran64::Supported.into() {
@@ -97,8 +101,17 @@ pub fn setup_paging() {
     let ttbr0_baddr = &raw const *l2_pt as u64;
     TTBR0_EL1.write(TTBR0_EL1::BADDR.val(ttbr0_baddr >> 1) + TTBR0_EL1::CnP::SET);
 
+    let ttbr1_baddr = ttbr0_baddr;
+    TTBR1_EL1.write(TTBR1_EL1::BADDR.val(ttbr1_baddr >> 1) + TTBR1_EL1::CnP::SET);
+
     TCR_EL1.write(
         TCR_EL1::IPS.val(id_aa64mmfr0.read(ID_AA64MMFR0_EL1::PARange))
+            + TCR_EL1::TG1::KiB_64
+            + TCR_EL1::SH1::Inner
+            + TCR_EL1::ORGN1::WriteBack_ReadAlloc_WriteAlloc_Cacheable
+            + TCR_EL1::IRGN1::WriteBack_ReadAlloc_WriteAlloc_Cacheable
+            + TCR_EL1::EPD1::EnableTTBR1Walks
+            + TCR_EL1::T1SZ.val(34) // 64-34=30 bits for addressing 1GiB
             + TCR_EL1::TG0::KiB_64
             + TCR_EL1::SH0::Inner
             + TCR_EL1::ORGN0::WriteBack_ReadAlloc_WriteAlloc_Cacheable
@@ -110,5 +123,17 @@ pub fn setup_paging() {
     // Turn address translation on
     barrier::isb(barrier::SY);
     SCTLR_EL1.modify(SCTLR_EL1::M::Enable + SCTLR_EL1::C::Cacheable + SCTLR_EL1::I::Cacheable);
+    barrier::isb(barrier::SY);
+}
+
+pub fn disable_ttbr0() {
+    TCR_EL1.modify(TCR_EL1::EPD0::DisableTTBR0Walks + TCR_EL1::T0SZ.val(64));
+
+    // SAFETY: The inline assembly flushes the TLB
+    unsafe {
+        core::arch::asm!("tlbi vmalle1");
+    }
+
+    barrier::dsb(barrier::SY);
     barrier::isb(barrier::SY);
 }

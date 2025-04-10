@@ -30,7 +30,7 @@ _start:
 	b      .L_clear_bss
 
 .L_jump_to_rust:
-	b      main
+	b      pre_main
 
 	// main shouldn't return, but just in case...
 	b      .L_secondary_loop

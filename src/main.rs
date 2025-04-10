@@ -10,16 +10,12 @@ mod memory;
 mod paging;
 
 use crate::locking::IRQSpinLock;
+use crate::memory::{AddressPhysical, KSTACKTOP_CPU0};
 use aarch64_cpu::asm;
-use aarch64_cpu::registers::{CurrentEL, ELR_EL2, HCR_EL2, SPSR_EL2, SP_EL1};
+use aarch64_cpu::registers::{CurrentEL, ELR_EL2, HCR_EL2, SP, SPSR_EL2, SP_EL1};
 use core::arch::global_asm;
 use drivers::uart_mini;
 use tock_registers::interfaces::{Readable, Writeable};
-
-// NOTE: It's the symbol's address we are interested in, not the value stored there
-extern "C" {
-    static __kernel_load_addr: usize;
-}
 
 global_asm!(include_str!("boot.s"));
 
@@ -49,19 +45,41 @@ pub fn jump_to_el1() {
             + SPSR_EL2::M::EL1h,
     );
 
-    ELR_EL2.set(crate::main as *const () as u64);
+    ELR_EL2.set(AddressPhysical::new(crate::pre_main as *const () as u64).as_u64());
 
-    // SAFETY: Assume the symbol is defined correctly in the linker script
-    let stack_top = unsafe { &__kernel_load_addr as *const usize as usize };
-    SP_EL1.set(stack_top as u64);
+    SP_EL1.set(KSTACKTOP_CPU0.as_physical().as_u64());
 
     asm::eret();
 }
 
+// This is the Rust entry point to the kernel. The program counter is still
+// a low address at this point.
 #[no_mangle]
-pub fn main() -> ! {
+pub fn pre_main() {
     jump_to_el1();
     paging::setup_paging();
+
+    // Paging is now on, but the program counter and stack pointer are still
+    // using low addresses. Time to update the SP and jump to a high address.
+    asm::barrier::isb(asm::barrier::SY);
+    let sp_low = AddressPhysical::new(SP.get());
+    let sp_high = sp_low.as_virtual();
+    SP.set(sp_high.as_u64());
+    asm::barrier::isb(asm::barrier::SY);
+
+    let main_addr = AddressPhysical::new(crate::main as *const () as u64).as_virtual();
+    // SAFETY: We trust that paging has been setup correctly
+    let main: fn() -> () = unsafe { core::mem::transmute(main_addr.as_u64() as *const ()) };
+    main();
+}
+
+pub fn main() -> ! {
+    // At this point we are running the kernel at a high address but low
+    // addresses are still mapped in the page tables. Disable TTBR0 so that we
+    // can only access memory using high addresses. After we do that attempting
+    // to access anything using a low address will result in a page fault.
+    paging::disable_ttbr0();
+
     exceptions::install_exception_table();
     irq::enable_interrupts();
 

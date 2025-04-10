@@ -1,9 +1,12 @@
-/* The RPi3 firmware loads the kernel at this address */
-__kernel_load_addr = 0x80000;
+/*
+ * The RPi3 firmware loads the kernel at physical address 0x80000.
+ * However, we link and eventually run the kernel from a high address.
+ */
+__kernel_start = 0xffffffffc0080000;
 
 SECTIONS
 {
-    . = __kernel_load_addr;
+    . = __kernel_start;
     .text :
     {
         KEEP(*(.text.boot))
