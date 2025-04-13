@@ -1,4 +1,3 @@
-use crate::locking::SpinLock;
 use crate::memory::MiB;
 use aarch64_cpu::asm::barrier;
 use aarch64_cpu::registers::{
@@ -38,7 +37,12 @@ struct PageTable {
     pte: [u64; 512],
 }
 
-static L2_PT: SpinLock<PageTable> = SpinLock::new(PageTable { pte: [0; 512] });
+// Normally we would use a SpinLock here, but on ARM64 you can't reliably use
+// atomics before enabling the MMU. Since we need to update this data structure
+// before actually enabling the MMU let's use a static mut here. We know that
+// at that point there is a single thread of execution so there's no potential
+// for race conditions.
+static mut L2_PT: PageTable = PageTable { pte: [0; 512] };
 
 // Rpi3 has a physical address space of 1GiB. Here we identity map this 1GiB.
 // We use 64KiB page granularity, and since we only need 30 bits to describe
@@ -94,11 +98,15 @@ pub fn setup_paging() {
             + PTE::UXN::SET,
     );
 
-    let mut l2_pt = L2_PT.lock();
-    l2_pt.pte[0] = entry0.get();
-    l2_pt.pte[1] = entry1.get();
+    // SAFETY: This function is called at early boot from a single thread of
+    // execution so accessing this static mut it's not racy. Check the variable
+    // declaration for an explanation of why we can't use a SpinLock here.
+    unsafe {
+        L2_PT.pte[0] = entry0.get();
+        L2_PT.pte[1] = entry1.get();
+    }
 
-    let ttbr0_baddr = &raw const *l2_pt as u64;
+    let ttbr0_baddr = &raw const L2_PT as u64;
     TTBR0_EL1.write(TTBR0_EL1::BADDR.val(ttbr0_baddr >> 1) + TTBR0_EL1::CnP::SET);
 
     let ttbr1_baddr = ttbr0_baddr;
