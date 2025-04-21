@@ -14,7 +14,7 @@ use crate::memory::{AddressPhysical, KSTACKTOP_CPU0};
 use aarch64_cpu::asm;
 use aarch64_cpu::registers::{CurrentEL, ELR_EL2, HCR_EL2, SP, SPSR_EL2, SP_EL1};
 use core::arch::global_asm;
-use drivers::uart_mini;
+use drivers::{mailbox, uart_mini};
 use tock_registers::interfaces::{Readable, Writeable};
 
 global_asm!(include_str!("boot.s"));
@@ -85,9 +85,16 @@ pub fn main() -> ! {
 
     uart_mini::init(115200);
 
-    let a = 4;
-    let b = 5;
-    println!("Hello {} with some math: {a} + {b} = {}", "world", a + b);
+    println!(
+        "VideoCore Firmware Version: {:#x}",
+        mailbox::get_vc_fw_version().unwrap()
+    );
+    println!(
+        "Board Serial Number: {:#x}",
+        mailbox::get_board_serial().unwrap()
+    );
+
+    print!("Everything you type will be echoed: ");
 
     loop {
         loop {

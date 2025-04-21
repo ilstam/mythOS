@@ -84,7 +84,6 @@ impl AddressVirtual {
         AddressPhysical::new(addr)
     }
 
-    #[allow(dead_code)]
     pub const fn as_bus(&self) -> AddressBus {
         self.as_physical().as_bus()
     }
@@ -125,7 +124,6 @@ impl AddressBus {
         Self { addr }
     }
 
-    #[allow(dead_code)]
     pub const fn as_u32(&self) -> u32 {
         self.addr
     }
@@ -190,13 +188,11 @@ macro_rules! dcache_operate_on_va_range {
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn dcache_clean_va_range(addr: AddressVirtual, size: u64) {
     dcache_operate_on_va_range!(addr, size, "cvac");
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn dcache_invalidate_va_range(addr: AddressVirtual, size: u64) {
     dcache_operate_on_va_range!(addr, size, "ivac");
 }
