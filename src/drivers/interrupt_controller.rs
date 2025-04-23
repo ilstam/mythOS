@@ -1,6 +1,6 @@
 // This is a driver for the interrupt controller included in BMC2837
 
-use crate::drivers::{MMIORegisters, PERIPHERALS_BASE};
+use crate::drivers::{peripheral_switch_in, MMIORegisters, PERIPHERALS_BASE};
 use crate::irq::Irq;
 use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::register_structs;
@@ -28,6 +28,7 @@ register_structs! {
 }
 
 pub fn enable_irq(irq: Irq) {
+    peripheral_switch_in();
     match irq {
         Irq::Arm(irq) => {
             REGS.ENABLE_IRQ_BASIC.set(1 << (irq as u32));
@@ -46,6 +47,7 @@ pub fn enable_irq(irq: Irq) {
 
 #[allow(dead_code)]
 pub fn disable_irq(irq: Irq) {
+    peripheral_switch_in();
     match irq {
         Irq::Arm(irq) => {
             REGS.DISABLE_BASIC_IRQ.set(1 << (irq as u32));
@@ -68,6 +70,7 @@ pub struct PendingIrqs {
 }
 
 pub fn pending_irqs() -> PendingIrqs {
+    peripheral_switch_in();
     let gpu = REGS.IRQ_PENDING1.get() as u64 | (REGS.IRQ_PENDING2.get() as u64 >> 32);
     let arm = REGS.IRQ_BASIC_PENDING.get() as u8;
     PendingIrqs { gpu, arm }

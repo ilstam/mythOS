@@ -2,7 +2,7 @@
 // However as far as possible the first 8 control and status registers are laid
 // out like a 16550 UART and the UART core is build to emulate 16550 behaviour.
 
-use crate::drivers::{gpio, gpio::GPIOPin, MMIORegisters, PERIPHERALS_BASE};
+use crate::drivers::{gpio, gpio::GPIOPin, peripheral_switch_in, MMIORegisters, PERIPHERALS_BASE};
 use crate::irq::{enable_irq, GpuIrq, Irq};
 use crate::locking::IRQSpinLock;
 use crate::{ACTIONS, PENDING_ACTIONS};
@@ -158,6 +158,7 @@ register_structs! {
 
 /// Configure UART for 8N1 (1 start bit, 8 data bits, no parity, 1 stop bit)
 pub fn init(baud_rate: u32) {
+    peripheral_switch_in();
     // The enable bit must be set first, otherwise we cannot even access the
     // rest of the registers.
     REGS.AUX_ENABLES.write(AUX_ENABLES::MINI_UART_ENABLE::SET);
@@ -190,17 +191,19 @@ pub fn init(baud_rate: u32) {
 }
 
 pub fn put_char(c: char) {
+    peripheral_switch_in();
     while !REGS.AUX_MU_LSR.is_set(AUX_MU_LSR::TX_READY) {
         // Wait until we can transmit
     }
     REGS.AUX_MU_IO_DATA.set(c as u8);
 }
 
-pub fn get_char() -> char {
+fn get_char() -> char {
     REGS.AUX_MU_IO_DATA.get() as char
 }
 
 pub fn process_rx_irq() {
+    peripheral_switch_in();
     let pending_rx_chars = REGS.AUX_MU_STAT.read(AUX_MU_STAT::RX_FIFO_FILL_LVL);
     let mut rx_buffer = RX_BUFFER.lock();
 
@@ -219,6 +222,7 @@ pub fn process_rx_irq() {
 
 // This is the bottom half of the RX IRQ handler that runs outside interrupt context
 pub fn process_pending_chars() {
+    peripheral_switch_in();
     let mut rx_buffer = RX_BUFFER.lock();
     // Copy and reset the buffer
     let buffer = *rx_buffer;

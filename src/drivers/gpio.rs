@@ -1,4 +1,4 @@
-use crate::drivers::{MMIORegisters, PERIPHERALS_BASE};
+use crate::drivers::{peripheral_switch_in, MMIORegisters, PERIPHERALS_BASE};
 use crate::locking::SpinLock;
 use core;
 use tock_registers::interfaces::Writeable;
@@ -53,6 +53,7 @@ impl GPIOPin {
     }
 
     pub fn select_mode(self, mode: PinMode) {
+        peripheral_switch_in();
         // Used to pick a register from GPFSEL0 to GPFSEL5
         let reg_index = self.pin as usize / 10;
         // Used to pick a field from FSEL0 to FSEL9 inside a GPFSELX register
@@ -77,6 +78,7 @@ impl GPIOPin {
 
     #[allow(dead_code)]
     pub fn set_high(self) {
+        peripheral_switch_in();
         if self.pin < 32 {
             REGS.GPSET0.set(1 << self.pin);
         } else {
@@ -86,6 +88,7 @@ impl GPIOPin {
 
     #[allow(dead_code)]
     pub fn set_low(self) {
+        peripheral_switch_in();
         if self.pin < 32 {
             REGS.GPCLR0.set(1 << self.pin);
         } else {
