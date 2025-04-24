@@ -2,12 +2,9 @@ pub mod gpio;
 pub mod interrupt_controller;
 pub mod uart_mini;
 
-use crate::memory::{AddressPhysical, AddressVirtual};
+use crate::memory::{AddressVirtual, PERIPHERALS_BASE};
 use aarch64_cpu::asm;
 use core::{marker::PhantomData, ops};
-
-// Peripherals base address for BMC2837 / RPI3
-pub(crate) const PERIPHERALS_BASE: AddressVirtual = AddressPhysical::new(0x3F00_0000).as_virtual();
 
 pub(crate) struct MMIORegisters<T> {
     base: AddressVirtual,
