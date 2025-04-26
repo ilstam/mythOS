@@ -14,6 +14,7 @@ pub const PERIPHERALS_BASE: AddressVirtual = AddressPhysical::new(0x3F00_0000).a
 pub const HIGH_MEMORY_START: AddressVirtual = AddressVirtual::new(_HIGH_MEMORY_START);
 pub const KSTACKTOP_CPU0: AddressVirtual = AddressVirtual::new(0xFFFF_FFFF_C008_0000);
 
+#[derive(Clone, Copy)]
 pub struct AddressPhysical {
     addr: u64,
 }
@@ -43,13 +44,33 @@ impl AddressPhysical {
     }
 }
 
+impl Eq for AddressPhysical {}
+
+impl PartialEq for AddressPhysical {
+    fn eq(&self, other: &Self) -> bool {
+        self.addr == other.addr
+    }
+}
+
+impl PartialOrd for AddressPhysical {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.addr.partial_cmp(&other.addr)
+    }
+}
+
+#[derive(Clone, Copy)]
 pub struct AddressVirtual {
     addr: u64,
 }
 
 impl AddressVirtual {
+    // Clippy complains that the second check in the assert!() is always true,
+    // however ADDRESS_SPACE_SIZE might change in the future
+    #[allow(clippy::absurd_extreme_comparisons)]
     pub const fn new(addr: u64) -> Self {
-        assert!(addr >= _HIGH_MEMORY_START);
+        assert!(
+            (addr >= _HIGH_MEMORY_START) && (addr <= _HIGH_MEMORY_START + (ADDRESS_SPACE_SIZE - 1))
+        );
         Self { addr }
     }
 
@@ -73,9 +94,24 @@ impl AddressVirtual {
     }
 }
 
+impl Eq for AddressVirtual {}
+
+impl PartialEq for AddressVirtual {
+    fn eq(&self, other: &Self) -> bool {
+        self.addr == other.addr
+    }
+}
+
+impl PartialOrd for AddressVirtual {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.addr.partial_cmp(&other.addr)
+    }
+}
+
 // See BCM2835-ARM-Peripherals.pdf section 1.2.4 Bus Addresses
 // The VC MMU mapping are taken from here (should be the same for 2836 and 2837):
 // https://lists.denx.de/pipermail/u-boot/2015-March/208201.html
+#[derive(Clone, Copy)]
 pub struct AddressBus {
     addr: u32,
 }
@@ -92,5 +128,19 @@ impl AddressBus {
     #[allow(dead_code)]
     pub const fn as_u32(&self) -> u32 {
         self.addr
+    }
+}
+
+impl Eq for AddressBus {}
+
+impl PartialEq for AddressBus {
+    fn eq(&self, other: &Self) -> bool {
+        self.addr == other.addr
+    }
+}
+
+impl PartialOrd for AddressBus {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.addr.partial_cmp(&other.addr)
     }
 }
