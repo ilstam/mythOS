@@ -1,9 +1,10 @@
 // This seems to be the best documentation for the VideoCore firmware and the
 // BCM2837 mailbox protocol: https://github.com/raspberrypi/firmware/wiki/Mailboxes
 
+use crate::address::AddressVirtual;
 use crate::drivers::{peripheral_switch_in, MMIORegisters, PERIPHERALS_BASE};
 use crate::locking::SpinLock;
-use crate::memory::{dcache_clean_va_range, dcache_invalidate_va_range, AddressVirtual};
+use crate::memory::{dcache_clean_va_range, dcache_invalidate_va_range};
 use aarch64_cpu::asm::barrier;
 use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::registers::{ReadOnly, WriteOnly};

@@ -1,6 +1,7 @@
 #![no_main]
 #![no_std]
 
+mod address;
 mod drivers;
 mod exceptions;
 mod irq;
@@ -9,8 +10,8 @@ mod logging;
 mod memory;
 mod paging;
 
+use crate::address::{AddressPhysical, KSTACKTOP_CPU0};
 use crate::locking::IRQSpinLock;
-use crate::memory::{AddressPhysical, KSTACKTOP_CPU0};
 use aarch64_cpu::asm;
 use aarch64_cpu::registers::{CurrentEL, ELR_EL2, HCR_EL2, SP, SPSR_EL2, SP_EL1};
 use core::arch::global_asm;

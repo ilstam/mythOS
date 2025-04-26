@@ -3,7 +3,7 @@ pub mod interrupt_controller;
 pub mod mailbox;
 pub mod uart_mini;
 
-use crate::memory::{AddressVirtual, PERIPHERALS_BASE};
+use crate::address::{AddressVirtual, PERIPHERALS_BASE};
 use aarch64_cpu::asm;
 use core::{marker::PhantomData, ops};
 
