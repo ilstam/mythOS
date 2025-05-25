@@ -2,6 +2,7 @@
 #![no_std]
 
 mod address;
+mod delay;
 mod drivers;
 mod exceptions;
 mod irq;
@@ -11,6 +12,7 @@ mod memory;
 mod paging;
 
 use crate::address::{AddressPhysical, KSTACKTOP_CPU0};
+use crate::delay::busy_wait;
 use crate::locking::IRQSpinLock;
 use aarch64_cpu::asm;
 use aarch64_cpu::registers::{CurrentEL, ELR_EL2, HCR_EL2, SP, SPSR_EL2, SP_EL1};
@@ -95,6 +97,7 @@ pub fn main() -> ! {
         mailbox::get_board_serial().unwrap()
     );
 
+    busy_wait(core::time::Duration::from_secs(1));
     print!("Everything you type will be echoed: ");
 
     loop {
