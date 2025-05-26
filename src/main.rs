@@ -76,6 +76,31 @@ pub fn pre_main() {
     main();
 }
 
+fn blink_onboard_led() {
+    let times = 3;
+    println!("Will now blink the LED {times} times");
+
+    for _ in 0..times {
+        mailbox::set_onboard_led_status(
+            mailbox::OnboardLEDPin::ActivityLED,
+            mailbox::OnboardLEDStatus::High,
+        )
+        .unwrap();
+
+        busy_wait(core::time::Duration::from_millis(500));
+
+        mailbox::set_onboard_led_status(
+            mailbox::OnboardLEDPin::ActivityLED,
+            mailbox::OnboardLEDStatus::Low,
+        )
+        .unwrap();
+
+        busy_wait(core::time::Duration::from_millis(500));
+    }
+
+    println!("LED blinking over");
+}
+
 pub fn main() -> ! {
     // At this point we are running the kernel at a high address but low
     // addresses are still mapped in the page tables. Disable TTBR0 so that we
@@ -97,7 +122,7 @@ pub fn main() -> ! {
         mailbox::get_board_serial().unwrap()
     );
 
-    busy_wait(core::time::Duration::from_secs(1));
+    blink_onboard_led();
     print!("Everything you type will be echoed: ");
 
     loop {

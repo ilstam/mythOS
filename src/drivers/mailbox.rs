@@ -120,6 +120,7 @@ struct MailboxMsgFooter {
 enum PropertyTag {
     GetFwVersion = 0x00000001,
     GetBoardSerial = 0x00010004,
+    SetOnboardLedStatus = 0x00038041,
 }
 
 #[repr(C)]
@@ -210,4 +211,32 @@ pub fn get_board_serial() -> Result<u64, u32> {
     let serial_num = ((serial_high as u64) << 32) | serial_low as u64;
 
     Ok(serial_num)
+}
+
+// The documentation in https://github.com/raspberrypi/firmware/wiki/Mailbox-property-interface
+// says that it's status=42, power=130. However it seems that pin 130 controls
+// the activity LED (ACT not PWR) on RPi3b.
+#[repr(u32)]
+pub enum OnboardLEDPin {
+    ActivityLED = 130,
+}
+
+#[repr(u32)]
+pub enum OnboardLEDStatus {
+    Low = 0,
+    High = 1,
+}
+
+pub fn set_onboard_led_status(pin: OnboardLEDPin, status: OnboardLEDStatus) -> Result<(), u32> {
+    define_and_init_property_msg!(
+        PropertyMsgSetOnboardLedStatus,
+        msg,
+        PropertyTag::SetOnboardLedStatus,
+        pin_num: OnboardLEDPin = pin,
+        status: OnboardLEDStatus = status,
+    );
+
+    mailbox_send_ptag_and_handle_error!(msg);
+
+    Ok(())
 }
