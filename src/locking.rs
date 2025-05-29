@@ -26,10 +26,14 @@ impl<T> SpinLock<T> {
 
     pub fn lock(&self) -> LockGuard<T> {
         // We use two loops here to reduce cache coherence traffic. The swap()
-        // is a write operation that will move the cache line to a 'modified'
-        // or 'exclusive' state, whereas load() is a read operation and
+        // is a write operation. It will first move the cache line to an
+        // 'exclusive' state and force other CPUs to move their cache line to
+        // the 'invalid' state. It will then try to move it to the 'modified'
+        // state with the write (if MESI). OTOH, load() is a read operation and
         // multiple CPUs can have the cache line in the 'shared' state when
-        // there is contention for the lock.
+        // there is contention for the lock. If we skip the load() and only use
+        // swap() and there is contention for the lock then CPUs will keep
+        // asking other CPUs to invalidate their copies of the cache line.
         while self.lock.swap(true, Ordering::Acquire) {
             while self.lock.load(Ordering::Relaxed) {
                 core::hint::spin_loop();
