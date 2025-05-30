@@ -128,15 +128,16 @@ pub fn setup_paging() {
             + TCR_EL1::T0SZ.val(34), // 64-34=30 bits for addressing 1GiB
     );
 
+    // Flush the TLB just in case
+    flush_tlb_all();
+
     // Turn address translation on
-    barrier::isb(barrier::SY);
     SCTLR_EL1.modify(SCTLR_EL1::M::Enable + SCTLR_EL1::C::Cacheable + SCTLR_EL1::I::Cacheable);
     barrier::isb(barrier::SY);
 }
 
-pub fn disable_ttbr0() {
-    TCR_EL1.modify(TCR_EL1::EPD0::DisableTTBR0Walks + TCR_EL1::T0SZ.val(64));
-
+#[inline]
+fn flush_tlb_all() {
     // SAFETY: The inline assembly flushes the TLB
     unsafe {
         core::arch::asm!("tlbi vmalle1");
@@ -144,4 +145,9 @@ pub fn disable_ttbr0() {
 
     barrier::dsb(barrier::SY);
     barrier::isb(barrier::SY);
+}
+
+pub fn disable_ttbr0() {
+    TCR_EL1.modify(TCR_EL1::EPD0::DisableTTBR0Walks + TCR_EL1::T0SZ.val(64));
+    flush_tlb_all();
 }
