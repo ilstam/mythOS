@@ -3,6 +3,10 @@ TARGET = "aarch64-unknown-none-softfloat"
 TOOLCHAIN_PREFIX = "aarch64-none-elf"
 ELF_BINARY = "target/${TARGET}/debug/mythos"
 DISK_IMAGE = "target/${TARGET}/debug/kernel8.img"
+FEATURES = "qemu"
+
+[env.rpi3]
+FEATURES = ""
 
 [tasks.install-dependencies]
 script = '''
@@ -18,7 +22,7 @@ args = ["clean"]
 [tasks.build]
 env = { "RUSTFLAGS" = "-C link-args=-Lsrc -C link-args=-Tsrc/kernel.ld" }
 command = "cargo"
-args = ["build", "--target=${TARGET}"]
+args = ["build", "--features", "${FEATURES}", "--target=${TARGET}"]
 
 [tasks.clippy]
 command = "cargo"
