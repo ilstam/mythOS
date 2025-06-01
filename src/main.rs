@@ -124,6 +124,12 @@ pub fn main() -> ! {
         mailbox::get_board_serial().unwrap()
     );
 
+    let range = mailbox::get_arm_memory().unwrap();
+    println!("ARM memory base={:#x} size={:#x}", range.base.as_u64(), range.size);
+
+    let range = mailbox::get_videocore_memory().unwrap();
+    println!("VideoCore memory base={:#x} size={:#x}", range.base.as_u64(), range.size);
+
     print!("Everything you type will be echoed: ");
 
     loop {

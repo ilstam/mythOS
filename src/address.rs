@@ -139,3 +139,8 @@ impl PartialOrd for AddressBus {
         self.addr.partial_cmp(&other.addr)
     }
 }
+
+pub struct AddressRange<T> {
+    pub base: T,
+    pub size: u64,
+}

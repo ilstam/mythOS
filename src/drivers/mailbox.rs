@@ -1,7 +1,7 @@
 // This seems to be the best documentation for the VideoCore firmware and the
 // BCM2837 mailbox protocol: https://github.com/raspberrypi/firmware/wiki/Mailboxes
 
-use crate::address::AddressVirtual;
+use crate::address::{AddressPhysical, AddressRange, AddressVirtual};
 use crate::drivers::{peripheral_switch_in, MMIORegisters, PERIPHERALS_BASE};
 use crate::locking::SpinLock;
 use crate::memory::{dcache_clean_va_range, dcache_invalidate_va_range};
@@ -120,6 +120,8 @@ struct MailboxMsgFooter {
 enum PropertyTag {
     GetFwVersion = 0x00000001,
     GetBoardSerial = 0x00010004,
+    GetArmMemory = 0x00010005,
+    GetVideoCoreMemory = 0x00010006,
     SetOnboardLedStatus = 0x00038041,
 }
 
@@ -211,6 +213,52 @@ pub fn get_board_serial() -> Result<u64, u32> {
     let serial_num = ((serial_high as u64) << 32) | serial_low as u64;
 
     Ok(serial_num)
+}
+
+pub fn get_arm_memory() -> Result<AddressRange<AddressPhysical>, u32> {
+    define_and_init_property_msg!(
+        PropertyMsgArmMemory,
+        msg,
+        PropertyTag::GetArmMemory,
+        base: u32 = 0,
+        size: u32 = 0,
+    );
+
+    mailbox_send_ptag_and_handle_error!(msg);
+
+    // SAFETY: The pointers satisfy the requirements set by read_volatile()
+    let base = unsafe { core::ptr::read_volatile(&msg.base) } as u64;
+    let size = unsafe { core::ptr::read_volatile(&msg.size) } as u64;
+
+    let range = AddressRange::<AddressPhysical> {
+        base: AddressPhysical::new(base),
+        size,
+    };
+
+    Ok(range)
+}
+
+pub fn get_videocore_memory() -> Result<AddressRange<AddressPhysical>, u32> {
+    define_and_init_property_msg!(
+        PropertyMsgVideoCoreMemory,
+        msg,
+        PropertyTag::GetVideoCoreMemory,
+        base: u32 = 0,
+        size: u32 = 0,
+    );
+
+    mailbox_send_ptag_and_handle_error!(msg);
+
+    // SAFETY: The pointers satisfy the requirements set by read_volatile()
+    let base = unsafe { core::ptr::read_volatile(&msg.base) } as u64;
+    let size = unsafe { core::ptr::read_volatile(&msg.size) } as u64;
+
+    let range = AddressRange::<AddressPhysical> {
+        base: AddressPhysical::new(base),
+        size,
+    };
+
+    Ok(range)
 }
 
 // The documentation in https://github.com/raspberrypi/firmware/wiki/Mailbox-property-interface
