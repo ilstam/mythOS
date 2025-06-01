@@ -77,17 +77,19 @@ pub fn pre_main() {
 }
 
 fn blink_onboard_led() {
-    let times = 3;
-    println!("Will now blink the LED {times} times");
+    #[cfg(feature = "qemu")]
+    let wait_time = core::time::Duration::from_millis(1);
+    #[cfg(not(feature = "qemu"))]
+    let wait_time = core::time::Duration::from_millis(500);
 
-    for _ in 0..times {
+    for _ in 0..3 {
         mailbox::set_onboard_led_status(
             mailbox::OnboardLEDPin::ActivityLED,
             mailbox::OnboardLEDStatus::High,
         )
         .unwrap();
 
-        busy_wait(core::time::Duration::from_millis(500));
+        busy_wait(wait_time);
 
         mailbox::set_onboard_led_status(
             mailbox::OnboardLEDPin::ActivityLED,
@@ -95,10 +97,8 @@ fn blink_onboard_led() {
         )
         .unwrap();
 
-        busy_wait(core::time::Duration::from_millis(500));
+        busy_wait(wait_time);
     }
-
-    println!("LED blinking over");
 }
 
 pub fn main() -> ! {
@@ -113,6 +113,8 @@ pub fn main() -> ! {
 
     uart_mini::init(115200);
 
+    blink_onboard_led();
+
     println!(
         "VideoCore Firmware Version: {:#x}",
         mailbox::get_vc_fw_version().unwrap()
@@ -122,7 +124,6 @@ pub fn main() -> ! {
         mailbox::get_board_serial().unwrap()
     );
 
-    blink_onboard_led();
     print!("Everything you type will be echoed: ");
 
     loop {
