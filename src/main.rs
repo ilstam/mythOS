@@ -2,6 +2,7 @@
 #![no_std]
 
 mod address;
+mod allocator;
 mod delay;
 mod drivers;
 mod exceptions;
@@ -11,7 +12,7 @@ mod logging;
 mod memory;
 mod paging;
 
-use crate::address::{AddressPhysical, KSTACKTOP_CPU0};
+use crate::address::{AddressPhysical, RangePhysical, KSTACKGUARD_CPU0, KSTACKTOP_CPU0};
 use crate::delay::busy_wait;
 use crate::locking::IRQSpinLock;
 use aarch64_cpu::asm;
@@ -21,6 +22,11 @@ use drivers::{mailbox, uart_mini};
 use tock_registers::interfaces::{Readable, Writeable};
 
 global_asm!(include_str!("boot.s"));
+
+// NOTE: It's the symbol's address we are interested in, not the value stored there
+extern "C" {
+    static __kernel_size: usize;
+}
 
 pub static PENDING_ACTIONS: IRQSpinLock<u64> = IRQSpinLock::new(0);
 
@@ -101,6 +107,32 @@ fn blink_onboard_led() {
     }
 }
 
+// The firmware returns a single contiguous RAM region, but we need to account
+// for the subregion where the binary has been loaded plus the stack page plus
+// a stack guard page. For the stack we use the page just before the page where
+// the binary is loaded, and the page just before the stack page must remain
+// unmapped. So essentially we should give 2 regions to the allocator, one from
+// the start of RAM to the beginning of the stack guard page and then from the
+// end of the binary to the end of RAM.
+fn allocator_init(ram_range: RangePhysical, binary_size: usize) {
+    if ram_range.base() < KSTACKGUARD_CPU0.as_physical() {
+        let size = KSTACKGUARD_CPU0.as_physical().as_u64() - ram_range.base().as_u64();
+        // SAFETY: We trust the math above is correct and the range returned by
+        // the firmware is valid
+        unsafe {
+            allocator::add_region(&RangePhysical::new(AddressPhysical::new(0), size));
+        }
+    }
+
+    let start = KSTACKTOP_CPU0.add(binary_size as u64).as_physical();
+    let size = ram_range.base().as_u64() + ram_range.size() - start.as_u64();
+    // SAFETY: We trust the math above is correct and the range returned by the
+    // firmware is valid
+    unsafe {
+        allocator::add_region(&RangePhysical::new(start, size));
+    }
+}
+
 pub fn main() -> ! {
     // At this point we are running the kernel at a high address but low
     // addresses are still mapped in the page tables. Disable TTBR0 so that we
@@ -124,19 +156,25 @@ pub fn main() -> ! {
         mailbox::get_board_serial().unwrap()
     );
 
-    let range = mailbox::get_arm_memory().unwrap();
+    // SAFETY: Assume the symbol is defined correctly in the linker script
+    let kernel_size = unsafe { &__kernel_size as *const usize as usize };
+    println!("Kernel binary size = {kernel_size:#x} bytes");
+
+    let ram_range = mailbox::get_arm_memory().unwrap();
     println!(
         "ARM memory base={:#x} size={:#x}",
-        range.base().as_u64(),
-        range.size()
+        ram_range.base().as_u64(),
+        ram_range.size()
     );
 
-    let range = mailbox::get_videocore_memory().unwrap();
+    let vc_range = mailbox::get_videocore_memory().unwrap();
     println!(
         "VideoCore memory base={:#x} size={:#x}",
-        range.base().as_u64(),
-        range.size()
+        vc_range.base().as_u64(),
+        vc_range.size()
     );
+
+    allocator_init(ram_range, kernel_size);
 
     print!("Everything you type will be echoed: ");
 

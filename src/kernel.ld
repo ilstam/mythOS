@@ -31,4 +31,5 @@ SECTIONS
         . = ALIGN(8);
         __bss_end = .;
     }
+    __kernel_size = . - __kernel_start;
 }

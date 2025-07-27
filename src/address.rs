@@ -1,4 +1,4 @@
-use crate::memory::GiB;
+use crate::memory::{GiB, PAGE_SIZE};
 
 // The kernel virtual address range [0xffffffffc0000000, 0xffffffffffffffff]
 // maps to the physical address range [0, 0x3fffffff]
@@ -10,6 +10,7 @@ const VC_MMU_PERIPHERALS_RANGE: core::ops::RangeInclusive<u32> = 0x7E00_0000..=0
 pub const PERIPHERALS_BASE: AddressVirtual = AddressPhysical::new(0x3F00_0000).as_virtual();
 pub const HIGH_MEMORY_START: AddressVirtual = AddressVirtual::new(_HIGH_MEMORY_START);
 pub const KSTACKTOP_CPU0: AddressVirtual = AddressVirtual::new(0xFFFF_FFFF_C008_0000);
+pub const KSTACKGUARD_CPU0: AddressVirtual = KSTACKTOP_CPU0.subtract(PAGE_SIZE * 2);
 
 #[derive(Clone, Copy, Debug)]
 pub struct AddressPhysical {
@@ -78,6 +79,11 @@ impl AddressVirtual {
 
     pub const fn add(&self, offset: u64) -> Self {
         let addr = self.addr + offset;
+        Self::new(addr)
+    }
+
+    pub const fn subtract(&self, offset: u64) -> Self {
+        let addr = self.addr - offset;
         Self::new(addr)
     }
 

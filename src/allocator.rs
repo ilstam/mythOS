@@ -83,11 +83,14 @@ impl<const PAGE_SZ: u64> PageAllocator<PAGE_SZ> {
 // SAFETY: The caller must ensure the entire region is available and free and
 // doesn't overlap with regions previously donated to the allocator.
 pub unsafe fn add_region(region: &RangePhysical) {
+    let num_pages = region.size() / PAGE_SIZE;
+    crate::println!("Adding {num_pages} pages to physical memory allocator: {region:#x?}");
     let mut p = PAGE_ALLOCATOR.lock();
     p.add_region(region);
 }
 
 /// Allocates a 4KiB page with all bytes set to 0.
+#[allow(dead_code)]
 pub fn allocate_page() -> Result<AddressVirtual, AllocError> {
     let mut p = PAGE_ALLOCATOR.lock();
     p.allocate_page()
@@ -95,6 +98,7 @@ pub fn allocate_page() -> Result<AddressVirtual, AllocError> {
 
 // SAFETY: The vaddr must have been returned by a a previous call to
 // allocate_page() and must have not been previously freed.
+#[allow(dead_code)]
 pub unsafe fn free_page(vaddr: AddressVirtual) {
     let mut p = PAGE_ALLOCATOR.lock();
     p.free_page(vaddr);
