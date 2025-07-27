@@ -1,7 +1,7 @@
 // This seems to be the best documentation for the VideoCore firmware and the
 // BCM2837 mailbox protocol: https://github.com/raspberrypi/firmware/wiki/Mailboxes
 
-use crate::address::{AddressPhysical, AddressRange, AddressVirtual};
+use crate::address::{AddressPhysical, AddressVirtual, RangePhysical};
 use crate::drivers::{peripheral_switch_in, MMIORegisters, PERIPHERALS_BASE};
 use crate::locking::SpinLock;
 use crate::memory::{dcache_clean_va_range, dcache_invalidate_va_range};
@@ -215,7 +215,7 @@ pub fn get_board_serial() -> Result<u64, u32> {
     Ok(serial_num)
 }
 
-pub fn get_arm_memory() -> Result<AddressRange<AddressPhysical>, u32> {
+pub fn get_arm_memory() -> Result<RangePhysical, u32> {
     define_and_init_property_msg!(
         PropertyMsgArmMemory,
         msg,
@@ -230,15 +230,12 @@ pub fn get_arm_memory() -> Result<AddressRange<AddressPhysical>, u32> {
     let base = unsafe { core::ptr::read_volatile(&msg.base) } as u64;
     let size = unsafe { core::ptr::read_volatile(&msg.size) } as u64;
 
-    let range = AddressRange::<AddressPhysical> {
-        base: AddressPhysical::new(base),
-        size,
-    };
+    let range = RangePhysical::new(AddressPhysical::new(base), size);
 
     Ok(range)
 }
 
-pub fn get_videocore_memory() -> Result<AddressRange<AddressPhysical>, u32> {
+pub fn get_videocore_memory() -> Result<RangePhysical, u32> {
     define_and_init_property_msg!(
         PropertyMsgVideoCoreMemory,
         msg,
@@ -253,10 +250,7 @@ pub fn get_videocore_memory() -> Result<AddressRange<AddressPhysical>, u32> {
     let base = unsafe { core::ptr::read_volatile(&msg.base) } as u64;
     let size = unsafe { core::ptr::read_volatile(&msg.size) } as u64;
 
-    let range = AddressRange::<AddressPhysical> {
-        base: AddressPhysical::new(base),
-        size,
-    };
+    let range = RangePhysical::new(AddressPhysical::new(base), size);
 
     Ok(range)
 }

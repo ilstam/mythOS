@@ -22,6 +22,11 @@ impl AddressPhysical {
         Self { addr }
     }
 
+    pub const fn add(&self, offset: u64) -> Self {
+        let addr = self.addr + offset;
+        Self::new(addr)
+    }
+
     pub const fn as_virtual(&self) -> AddressVirtual {
         HIGH_MEMORY_START.add(self.addr)
     }
@@ -140,7 +145,29 @@ impl PartialOrd for AddressBus {
     }
 }
 
-pub struct AddressRange<T> {
-    pub base: T,
-    pub size: u64,
+// NOTE: Normally we'd define an AddressRange generic type and define a trait
+// that both AddressPhysical and AddressVirtual implement. Unfortunately, Rust
+// doesn't support const functions in trait implementation so that doesn't
+// work. For this reason if we need ranges for virtual addresses we'll end up
+// duplicating code.
+pub struct RangePhysical {
+    base: AddressPhysical,
+    size: u64,
+}
+
+impl RangePhysical {
+    pub const fn new(base: AddressPhysical, size: u64) -> Self {
+        assert!(size > 0);
+        // Check that the end address is valid
+        base.add(size - 1);
+        Self { base, size }
+    }
+
+    pub const fn base(&self) -> AddressPhysical {
+        self.base
+    }
+
+    pub const fn size(&self) -> u64 {
+        self.size
+    }
 }
