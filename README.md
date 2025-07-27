@@ -11,10 +11,10 @@ Development is slow because I'm busy. :)
 * Exception handling and context switching
 * Simple locking primitives
 * Drivers for the interrupt controller, UART, GPIO module and mailbox interface.
+* Physical memory allocator
 
 ## What's next
 
-* Physical memory allocator
 * Userspace processes and scheduling
 * System calls and IPC
 * SMP

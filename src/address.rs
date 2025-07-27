@@ -11,7 +11,7 @@ pub const PERIPHERALS_BASE: AddressVirtual = AddressPhysical::new(0x3F00_0000).a
 pub const HIGH_MEMORY_START: AddressVirtual = AddressVirtual::new(_HIGH_MEMORY_START);
 pub const KSTACKTOP_CPU0: AddressVirtual = AddressVirtual::new(0xFFFF_FFFF_C008_0000);
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct AddressPhysical {
     addr: u64,
 }
@@ -150,6 +150,7 @@ impl PartialOrd for AddressBus {
 // doesn't support const functions in trait implementation so that doesn't
 // work. For this reason if we need ranges for virtual addresses we'll end up
 // duplicating code.
+#[derive(Clone, Copy, Debug)]
 pub struct RangePhysical {
     base: AddressPhysical,
     size: u64,
@@ -169,5 +170,15 @@ impl RangePhysical {
 
     pub const fn size(&self) -> u64 {
         self.size
+    }
+
+    pub const fn overlaps(&self, other: &Self) -> bool {
+        let this_start = self.base().as_u64();
+        let this_end = this_start + self.size - 1;
+        let other_start = other.base().as_u64();
+        let other_end = other_start + other.size - 1;
+
+        (other_start >= this_start && other_start <= this_end)
+            || (other_end >= this_start && other_end <= this_end)
     }
 }

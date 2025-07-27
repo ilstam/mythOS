@@ -5,6 +5,8 @@ pub const MiB: u64 = 1 << 20;
 #[allow(non_upper_case_globals)]
 pub const GiB: u64 = 1 << 30;
 
+pub const PAGE_SIZE: u64 = 4096;
+
 #[inline]
 pub fn get_cache_line_size() -> u32 {
     let ctr_el0: u64;
