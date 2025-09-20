@@ -87,6 +87,11 @@ impl AddressVirtual {
         Self::new(addr)
     }
 
+    pub const fn align_up(&self, alignment: u64) -> Self {
+        assert!(alignment.is_power_of_two());
+        Self::new((self.addr + alignment - 1) & !(alignment - 1))
+    }
+
     pub const fn as_physical(&self) -> AddressPhysical {
         let addr = self.addr - HIGH_MEMORY_START.as_u64();
         AddressPhysical::new(addr)

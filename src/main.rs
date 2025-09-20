@@ -15,6 +15,7 @@ mod paging;
 use crate::address::{AddressPhysical, RangePhysical, KSTACKGUARD_CPU0, KSTACKTOP_CPU0};
 use crate::delay::busy_wait;
 use crate::locking::IRQSpinLock;
+use crate::memory::PAGE_SIZE;
 use aarch64_cpu::asm;
 use aarch64_cpu::registers::{CurrentEL, ELR_EL2, HCR_EL2, SP, SPSR_EL2, SP_EL1};
 use core::arch::global_asm;
@@ -124,7 +125,10 @@ fn allocator_init(ram_range: RangePhysical, binary_size: usize) {
         }
     }
 
-    let start = KSTACKTOP_CPU0.add(binary_size as u64).as_physical();
+    let start = KSTACKTOP_CPU0
+        .add(binary_size as u64)
+        .align_up(PAGE_SIZE)
+        .as_physical();
     let size = ram_range.base().as_u64() + ram_range.size() - start.as_u64();
     // SAFETY: We trust the math above is correct and the range returned by the
     // firmware is valid
