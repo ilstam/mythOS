@@ -67,7 +67,7 @@ pub fn jump_to_el1() {
 #[no_mangle]
 pub fn pre_main() {
     jump_to_el1();
-    paging::setup_paging();
+    paging::setup_early_boot_paging();
 
     // Paging is now on, but the program counter and stack pointer are still
     // using low addresses. Time to update the SP and jump to a high address.

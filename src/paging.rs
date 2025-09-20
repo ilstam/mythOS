@@ -42,7 +42,7 @@ struct PageTable {
 // before actually enabling the MMU let's use a static mut here. We know that
 // at that point there is a single thread of execution so there's no potential
 // for race conditions.
-static mut L2_PT: PageTable = PageTable { pte: [0; 512] };
+static mut L2_PT_EARLY: PageTable = PageTable { pte: [0; 512] };
 
 // Rpi3 has a physical address space of 1GiB. Here we identity map this 1GiB.
 // We use 64KiB page granularity, and since we only need 30 bits to describe
@@ -55,7 +55,7 @@ static mut L2_PT: PageTable = PageTable { pte: [0; 512] };
 // The same root page table is used by both TTBR0 and TTBR1 which means that
 // the same physical memory can be accessed using either low virtual addresses
 // [0, 0x3fffffff] or high addresses [0xffffffffc0000000, 0xffffffffffffffff].
-pub fn setup_paging() {
+pub fn setup_early_boot_paging() {
     let id_aa64mmfr0 = ID_AA64MMFR0_EL1.extract();
     if id_aa64mmfr0.read(ID_AA64MMFR0_EL1::TGran64) != ID_AA64MMFR0_EL1::TGran64::Supported.into() {
         panic!("The MMU doesn't support 64KiB translation granule");
@@ -102,11 +102,11 @@ pub fn setup_paging() {
     // execution so accessing this static mut it's not racy. Check the variable
     // declaration for an explanation of why we can't use a SpinLock here.
     unsafe {
-        L2_PT.pte[0] = entry0.get();
-        L2_PT.pte[1] = entry1.get();
+        L2_PT_EARLY.pte[0] = entry0.get();
+        L2_PT_EARLY.pte[1] = entry1.get();
     }
 
-    let ttbr0_baddr = &raw const L2_PT as u64;
+    let ttbr0_baddr = &raw const L2_PT_EARLY as u64;
     TTBR0_EL1.write(TTBR0_EL1::BADDR.val(ttbr0_baddr >> 1) + TTBR0_EL1::CnP::SET);
 
     let ttbr1_baddr = ttbr0_baddr;
