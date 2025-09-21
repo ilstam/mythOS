@@ -1,8 +1,14 @@
-use crate::memory::MiB;
+use crate::address::{
+    AddressPhysical, AddressVirtual, RangePhysical, PERIPHERALS_BASE, PERIPHERALS_SIZE,
+};
+use crate::allocator::allocate_page;
+use crate::locking::SpinLock;
+use crate::memory::{MiB, PAGE_SIZE};
 use aarch64_cpu::asm::barrier;
 use aarch64_cpu::registers::{
     ID_AA64MMFR0_EL1, MAIR_EL1, SCTLR_EL1, TCR_EL1, TTBR0_EL1, TTBR1_EL1,
 };
+use tock_registers::fields::FieldValue;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 use tock_registers::registers::InMemoryRegister;
@@ -12,6 +18,7 @@ register_bitfields! {
     PTE [
         UXN OFFSET(54) NUMBITS(1) [],
         PXN OFFSET(53) NUMBITS(1) [],
+        ADDRESS OFFSET(12) NUMBITS(18) [],
         AF  OFFSET(10) NUMBITS(1) [],
         SH  OFFSET(8) NUMBITS(2) [
             OUTER_SHAREABLE = 0b10,
@@ -32,11 +39,21 @@ register_bitfields! {
     ]
 }
 
+enum MairType {
+    Normal = 0,
+    Device = 1,
+}
+
 #[repr(align(4096))]
 struct PageTable {
     pte: [u64; 512],
 }
 
+// Root L2 page table used after early boot. Uses a 4KiB translation granule.
+static L2_PT: SpinLock<PageTable> = SpinLock::new(PageTable { pte: [0; 512] });
+
+// Root L2 page table used during early boot. Uses a 64KiB translation granule.
+//
 // Normally we would use a SpinLock here, but on ARM64 you can't reliably use
 // atomics before enabling the MMU. Since we need to update this data structure
 // before actually enabling the MMU let's use a static mut here. We know that
@@ -61,17 +78,12 @@ pub fn setup_early_boot_paging() {
         panic!("The MMU doesn't support 64KiB translation granule");
     }
 
+    // These should match enum MairType
     MAIR_EL1.write(
         MAIR_EL1::Attr0_Normal_Inner::WriteBack_NonTransient_ReadWriteAlloc
             + MAIR_EL1::Attr0_Normal_Outer::WriteBack_NonTransient_ReadWriteAlloc
             + MAIR_EL1::Attr1_Device::nonGathering_nonReordering_EarlyWriteAck,
     );
-
-    // These should match what we wrote to MAIR_EL1 just above
-    enum MairType {
-        Normal = 0,
-        Device = 1,
-    }
 
     // The first PTE in the L2 PT maps a 512MiB block of normal memory
     let physical_addr = 0;
@@ -134,6 +146,111 @@ pub fn setup_early_boot_paging() {
     // Turn address translation on
     SCTLR_EL1.modify(SCTLR_EL1::M::Enable + SCTLR_EL1::C::Cacheable + SCTLR_EL1::I::Cacheable);
     barrier::isb(barrier::SY);
+}
+
+fn l2_idx(va: AddressVirtual) -> usize {
+    ((va.as_u64() >> 21) & 0x1ff) as usize
+}
+
+fn l3_idx(va: AddressVirtual) -> usize {
+    ((va.as_u64() >> 12) & 0x1ff) as usize
+}
+
+fn map_page(va: AddressVirtual, pa: AddressPhysical, attributes: FieldValue<u64, PTE::Register>) {
+    let mut l2_pt = L2_PT.lock();
+    let l2_pte =
+        &mut l2_pt.pte[l2_idx(va)] as *mut u64 as *mut InMemoryRegister<u64, PTE::Register>;
+    // SAFETY: The pointer points to memory allocated for l2_pt on the heap
+    let l2_pte = unsafe { &*l2_pte };
+
+    let l3_pt;
+    if l2_pte.is_set(PTE::VALID) {
+        // There already is a L3 PT for the 4KiB in question
+        let l3_pt_addr = AddressPhysical::new(l2_pte.read(PTE::ADDRESS) << 12);
+        l3_pt = unsafe { &mut *(l3_pt_addr.as_virtual().as_u64() as *mut PageTable) };
+    } else {
+        // We need to allocate a new page to be used as the L3 PT, and we need
+        // to update the L2 PTE accordingly
+        let page = allocate_page().unwrap();
+        l3_pt = unsafe { &mut *(page.as_u64() as *mut PageTable) };
+
+        l2_pte.set(page.as_physical().as_u64());
+        l2_pte.modify(PTE::VALID::SET + PTE::DESC_TYPE::TABLE_OR_PAGE);
+    }
+
+    let l3_pte =
+        &mut l3_pt.pte[l3_idx(va)] as *mut u64 as *mut InMemoryRegister<u64, PTE::Register>;
+    // SAFETY: The pointer points to memory previously allocated with allocate_page()
+    let l3_pte = unsafe { &*l3_pte };
+
+    l3_pte.set(pa.as_u64());
+    l3_pte.modify(PTE::VALID::SET + PTE::DESC_TYPE::TABLE_OR_PAGE + attributes);
+}
+
+pub fn map_range(
+    mut va: AddressVirtual,
+    mut pa: AddressPhysical,
+    mut size: u64,
+    attributes: FieldValue<u64, PTE::Register>,
+) {
+    if size == 0 {
+        return;
+    }
+
+    loop {
+        map_page(va, pa, attributes);
+        size = size.saturating_sub(PAGE_SIZE);
+        // Break early to avoid creating invalid PAs or VAs
+        if size == 0 {
+            break;
+        }
+        va = va.add(PAGE_SIZE);
+        pa = pa.add(PAGE_SIZE);
+    }
+}
+
+/// Setup the runtime page tables used by the kernel after early boot and after
+/// initialising the page allocator. The runtime page tables use a 4KiB
+/// translation granule and identity map all RAM and the peripherals space
+/// using TTBR1_EL1.
+pub fn setup_runtime_paging(ram_range: RangePhysical) {
+    let id_aa64mmfr0 = ID_AA64MMFR0_EL1.extract();
+    if id_aa64mmfr0.read(ID_AA64MMFR0_EL1::TGran4) != ID_AA64MMFR0_EL1::TGran4::Supported.into() {
+        panic!("The MMU doesn't support 4KiB translation granule");
+    }
+
+    // TODO: Use more fine grained regions with the appropriate attributes for
+    // rodata, code, etc. Also unmap the stack guard pages.
+
+    // Map all RAM
+    let attributes = PTE::ATTR_INDEX.val(MairType::Normal as u64)
+        + PTE::SH::INNER_SHAREABLE
+        + PTE::AF::SET
+        + PTE::UXN::SET;
+    map_range(
+        ram_range.base().as_virtual(),
+        ram_range.base(),
+        ram_range.size(),
+        attributes,
+    );
+
+    // Map the peripherals space
+    let attributes = PTE::ATTR_INDEX.val(MairType::Device as u64)
+        + PTE::SH::OUTER_SHAREABLE
+        + PTE::AF::SET
+        + PTE::PXN::SET
+        + PTE::UXN::SET;
+    map_range(
+        PERIPHERALS_BASE,
+        PERIPHERALS_BASE.as_physical(),
+        PERIPHERALS_SIZE,
+        attributes,
+    );
+
+    // TODO: Start using the new page tables. Since we want to use a new
+    // translation granule for TTBR1_EL1 we'll need to jump to a low address,
+    // disable the MMU and then enable it again and finally jump back to a high
+    // address again.
 }
 
 #[inline]

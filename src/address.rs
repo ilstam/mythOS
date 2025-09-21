@@ -8,6 +8,7 @@ const VC_MMU_RAM_RANGE: core::ops::RangeInclusive<u32> = 0xC000_0000..=0xFEFF_FF
 const VC_MMU_PERIPHERALS_RANGE: core::ops::RangeInclusive<u32> = 0x7E00_0000..=0x7EFF_FFFF;
 
 pub const PERIPHERALS_BASE: AddressVirtual = AddressPhysical::new(0x3F00_0000).as_virtual();
+pub const PERIPHERALS_SIZE: u64 = 0x1000000;
 pub const HIGH_MEMORY_START: AddressVirtual = AddressVirtual::new(_HIGH_MEMORY_START);
 pub const KSTACKTOP_CPU0: AddressVirtual = AddressVirtual::new(0xFFFF_FFFF_C008_0000);
 pub const KSTACKGUARD_CPU0: AddressVirtual = KSTACKTOP_CPU0.subtract(PAGE_SIZE * 2);

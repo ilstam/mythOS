@@ -90,7 +90,6 @@ pub unsafe fn add_region(region: &RangePhysical) {
 }
 
 /// Allocates a 4KiB page with all bytes set to 0.
-#[allow(dead_code)]
 pub fn allocate_page() -> Result<AddressVirtual, AllocError> {
     let mut p = PAGE_ALLOCATOR.lock();
     p.allocate_page()

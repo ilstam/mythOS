@@ -180,6 +180,8 @@ pub fn main() -> ! {
 
     allocator_init(ram_range, kernel_size);
 
+    paging::setup_runtime_paging(ram_range);
+
     print!("Everything you type will be echoed: ");
 
     loop {
