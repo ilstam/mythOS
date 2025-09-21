@@ -6,7 +6,7 @@ use crate::locking::SpinLock;
 use crate::memory::{MiB, PAGE_SIZE};
 use aarch64_cpu::asm::barrier;
 use aarch64_cpu::registers::{
-    ID_AA64MMFR0_EL1, MAIR_EL1, SCTLR_EL1, TCR_EL1, TTBR0_EL1, TTBR1_EL1,
+    ID_AA64MMFR0_EL1, MAIR_EL1, SCTLR_EL1, SP, TCR_EL1, TTBR0_EL1, TTBR1_EL1,
 };
 use tock_registers::fields::FieldValue;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -212,7 +212,7 @@ pub fn map_range(
 /// Setup the runtime page tables used by the kernel after early boot and after
 /// initialising the page allocator. The runtime page tables use a 4KiB
 /// translation granule and identity map all RAM and the peripherals space
-/// using TTBR1_EL1.
+/// using TTBR1_EL1. This function disables TTBR0_EL1 walks.
 pub fn setup_runtime_paging(ram_range: RangePhysical) {
     let id_aa64mmfr0 = ID_AA64MMFR0_EL1.extract();
     if id_aa64mmfr0.read(ID_AA64MMFR0_EL1::TGran4) != ID_AA64MMFR0_EL1::TGran4::Supported.into() {
@@ -247,10 +247,52 @@ pub fn setup_runtime_paging(ram_range: RangePhysical) {
         attributes,
     );
 
-    // TODO: Start using the new page tables. Since we want to use a new
-    // translation granule for TTBR1_EL1 we'll need to jump to a low address,
-    // disable the MMU and then enable it again and finally jump back to a high
-    // address again.
+    // To change the translation granule of TTBR1_EL1 we're going to jump to a
+    // low address so that we can use TTBR1_EL0 temporarily.
+
+    // First move the stack pointer to its low address equivalent
+    let sp_high = AddressVirtual::new(SP.get());
+    let sp_low = sp_high.as_physical();
+    SP.set(sp_low.as_u64());
+    barrier::dsb(barrier::SY);
+
+    // And then jump to a low address
+    let func_addr =
+        AddressVirtual::new(switch_to_runtime_page_tables as *const () as u64).as_physical();
+    // SAFETY: TTBR0_EL1 is active so it's safe to jump to a low address
+    let switch_to_runtime_page_tables: fn() -> () =
+        unsafe { core::mem::transmute(func_addr.as_u64() as *const ()) };
+    switch_to_runtime_page_tables();
+
+    // We're now back here running from a high address using the new page
+    // tables! Let's update the SP again.
+    let sp_low = AddressPhysical::new(SP.get());
+    let sp_high = sp_low.as_virtual();
+    SP.set(sp_high.as_u64());
+    barrier::dsb(barrier::SY);
+
+    // Low addresses are still mapped. Disable TTBR0 so that we can only access
+    // memory using high addresses. After we do that attempting to access
+    // anything using a low address will result in a page fault.
+    TCR_EL1.modify(TCR_EL1::EPD0::DisableTTBR0Walks + TCR_EL1::T0SZ.val(64));
+    flush_tlb_all();
+}
+
+// This function must be run from a low address
+#[inline(never)]
+fn switch_to_runtime_page_tables() {
+    // Change the translation granule of TTBR1_EL1 to 4KiB
+    TCR_EL1.modify(TCR_EL1::TG1::KiB_4);
+    barrier::dsb(barrier::SY);
+
+    // And update the root page table
+    let ttbr1_baddr = AddressPhysical::new(&*L2_PT.lock() as *const PageTable as u64).as_u64();
+    TTBR1_EL1.write(TTBR1_EL1::BADDR.val(ttbr1_baddr >> 1) + TTBR1_EL1::CnP::SET);
+    barrier::dsb(barrier::SY);
+
+    flush_tlb_all();
+
+    // Jump back to a high address using the address stored in the LR!
 }
 
 #[inline]
@@ -262,9 +304,4 @@ fn flush_tlb_all() {
 
     barrier::dsb(barrier::SY);
     barrier::isb(barrier::SY);
-}
-
-pub fn disable_ttbr0() {
-    TCR_EL1.modify(TCR_EL1::EPD0::DisableTTBR0Walks + TCR_EL1::T0SZ.val(64));
-    flush_tlb_all();
 }

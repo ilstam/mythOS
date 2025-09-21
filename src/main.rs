@@ -137,13 +137,8 @@ fn allocator_init(ram_range: RangePhysical, binary_size: usize) {
     }
 }
 
+// When execution gets here the kernel is running from a high address
 pub fn main() -> ! {
-    // At this point we are running the kernel at a high address but low
-    // addresses are still mapped in the page tables. Disable TTBR0 so that we
-    // can only access memory using high addresses. After we do that attempting
-    // to access anything using a low address will result in a page fault.
-    paging::disable_ttbr0();
-
     exceptions::install_exception_table();
     irq::enable_interrupts();
 
