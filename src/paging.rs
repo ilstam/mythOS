@@ -10,8 +10,7 @@ use aarch64_cpu::registers::{
 };
 use tock_registers::fields::FieldValue;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
-use tock_registers::register_bitfields;
-use tock_registers::registers::InMemoryRegister;
+use tock_registers::{register_bitfields, LocalRegisterCopy};
 
 register_bitfields! {
     u64,
@@ -46,11 +45,13 @@ enum MairType {
 
 #[repr(align(4096))]
 struct PageTable {
-    pte: [u64; 512],
+    pte: [LocalRegisterCopy<u64, PTE::Register>; 512],
 }
 
 // Root L2 page table used after early boot. Uses a 4KiB translation granule.
-static L2_PT: SpinLock<PageTable> = SpinLock::new(PageTable { pte: [0; 512] });
+static L2_PT: SpinLock<PageTable> = SpinLock::new(PageTable {
+    pte: [LocalRegisterCopy::new(0); 512],
+});
 
 // Root L2 page table used during early boot. Uses a 64KiB translation granule.
 //
@@ -59,7 +60,9 @@ static L2_PT: SpinLock<PageTable> = SpinLock::new(PageTable { pte: [0; 512] });
 // before actually enabling the MMU let's use a static mut here. We know that
 // at that point there is a single thread of execution so there's no potential
 // for race conditions.
-static mut L2_PT_EARLY: PageTable = PageTable { pte: [0; 512] };
+static mut L2_PT_EARLY: PageTable = PageTable {
+    pte: [LocalRegisterCopy::new(0); 512],
+};
 
 // Rpi3 has a physical address space of 1GiB. Here we identity map this 1GiB.
 // We use 64KiB page granularity, and since we only need 30 bits to describe
@@ -87,7 +90,7 @@ pub fn setup_early_boot_paging() {
 
     // The first PTE in the L2 PT maps a 512MiB block of normal memory
     let physical_addr = 0;
-    let entry0: InMemoryRegister<u64, PTE::Register> = InMemoryRegister::new(physical_addr);
+    let mut entry0: LocalRegisterCopy<u64, PTE::Register> = LocalRegisterCopy::new(physical_addr);
     entry0.modify(
         PTE::VALID::SET
             + PTE::DESC_TYPE::BLOCK
@@ -99,7 +102,7 @@ pub fn setup_early_boot_paging() {
 
     // The second PTE in the L2 PT maps a 512MiB block of device memory
     let physical_addr = 512 * MiB;
-    let entry1: InMemoryRegister<u64, PTE::Register> = InMemoryRegister::new(physical_addr);
+    let mut entry1: LocalRegisterCopy<u64, PTE::Register> = LocalRegisterCopy::new(physical_addr);
     entry1.modify(
         PTE::VALID::SET
             + PTE::DESC_TYPE::BLOCK
@@ -114,8 +117,8 @@ pub fn setup_early_boot_paging() {
     // execution so accessing this static mut it's not racy. Check the variable
     // declaration for an explanation of why we can't use a SpinLock here.
     unsafe {
-        L2_PT_EARLY.pte[0] = entry0.get();
-        L2_PT_EARLY.pte[1] = entry1.get();
+        L2_PT_EARLY.pte[0] = entry0;
+        L2_PT_EARLY.pte[1] = entry1;
     }
 
     let ttbr0_baddr = &raw const L2_PT_EARLY as u64;
@@ -157,11 +160,8 @@ fn l3_idx(va: AddressVirtual) -> usize {
 }
 
 fn map_page(va: AddressVirtual, pa: AddressPhysical, attributes: FieldValue<u64, PTE::Register>) {
-    let mut l2_pt = L2_PT.lock();
-    let l2_pte =
-        &mut l2_pt.pte[l2_idx(va)] as *mut u64 as *mut InMemoryRegister<u64, PTE::Register>;
-    // SAFETY: The pointer points to memory allocated for l2_pt on the heap
-    let l2_pte = unsafe { &*l2_pte };
+    let l2_pt = &mut *L2_PT.lock();
+    let l2_pte = &mut l2_pt.pte[l2_idx(va)];
 
     let l3_pt;
     if l2_pte.is_set(PTE::VALID) {
@@ -178,11 +178,7 @@ fn map_page(va: AddressVirtual, pa: AddressPhysical, attributes: FieldValue<u64,
         l2_pte.modify(PTE::VALID::SET + PTE::DESC_TYPE::TABLE_OR_PAGE);
     }
 
-    let l3_pte =
-        &mut l3_pt.pte[l3_idx(va)] as *mut u64 as *mut InMemoryRegister<u64, PTE::Register>;
-    // SAFETY: The pointer points to memory previously allocated with allocate_page()
-    let l3_pte = unsafe { &*l3_pte };
-
+    let l3_pte = &mut l3_pt.pte[l3_idx(va)];
     l3_pte.set(pa.as_u64());
     l3_pte.modify(PTE::VALID::SET + PTE::DESC_TYPE::TABLE_OR_PAGE + attributes);
 }
