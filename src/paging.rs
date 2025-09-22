@@ -258,10 +258,10 @@ pub fn setup_runtime_paging(ram_range: RangePhysical) {
 
     // And then jump to a low address
     let func_addr =
-        AddressVirtual::new(switch_to_runtime_page_tables as *const () as u64).as_physical();
+        AddressVirtual::new(switch_to_runtime_page_tables as usize as u64).as_physical();
     // SAFETY: TTBR0_EL1 is active so it's safe to jump to a low address
-    let switch_to_runtime_page_tables: fn() -> () =
-        unsafe { core::mem::transmute(func_addr.as_u64() as *const ()) };
+    let switch_to_runtime_page_tables =
+        unsafe { core::mem::transmute::<u64, fn()>(func_addr.as_u64()) };
     switch_to_runtime_page_tables();
 
     // We're now back here running from a high address using the new page
@@ -286,7 +286,7 @@ fn switch_to_runtime_page_tables() {
     barrier::dsb(barrier::SY);
 
     // And update the root page table
-    let ttbr1_baddr = AddressPhysical::new(&*L2_PT.lock() as *const PageTable as u64).as_u64();
+    let ttbr1_baddr = AddressPhysical::new(&raw const *L2_PT.lock() as u64).as_u64();
     TTBR1_EL1.write(TTBR1_EL1::BADDR.val(ttbr1_baddr >> 1) + TTBR1_EL1::CnP::SET);
     barrier::dsb(barrier::SY);
 

@@ -55,7 +55,7 @@ pub fn jump_to_el1() {
             + SPSR_EL2::M::EL1h,
     );
 
-    ELR_EL2.set(AddressPhysical::new(crate::pre_main as *const () as u64).as_u64());
+    ELR_EL2.set(AddressPhysical::new(pre_main as usize as u64).as_u64());
 
     SP_EL1.set(KSTACKTOP_CPU0.as_physical().as_u64());
 
@@ -77,9 +77,9 @@ pub fn pre_main() {
     SP.set(sp_high.as_u64());
     asm::barrier::isb(asm::barrier::SY);
 
-    let main_addr = AddressPhysical::new(crate::main as *const () as u64).as_virtual();
+    let main_addr = AddressPhysical::new(main as usize as u64).as_virtual();
     // SAFETY: We trust that paging has been setup correctly
-    let main: fn() -> () = unsafe { core::mem::transmute(main_addr.as_u64() as *const ()) };
+    let main = unsafe { core::mem::transmute::<u64, fn()>(main_addr.as_u64()) };
     main();
 }
 
@@ -155,8 +155,7 @@ pub fn main() -> ! {
         mailbox::get_board_serial().unwrap()
     );
 
-    // SAFETY: Assume the symbol is defined correctly in the linker script
-    let kernel_size = unsafe { &__kernel_size as *const usize as usize };
+    let kernel_size = &raw const __kernel_size as usize;
     println!("Kernel binary size = {kernel_size:#x} bytes");
 
     let ram_range = mailbox::get_arm_memory().unwrap();

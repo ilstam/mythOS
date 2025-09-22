@@ -4,11 +4,6 @@ use core::arch::global_asm;
 use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::LocalRegisterCopy;
 
-// NOTE: It's the symbol's address we are interested in, not the value stored there
-extern "C" {
-    static __exception_table: usize;
-}
-
 #[repr(C)]
 // NOTE: The exception handler in exceptions.s expects this layout and size of
 // the struct. If anything changes here the assembly routines will need to be
@@ -33,10 +28,11 @@ const _: () = {
 global_asm!(include_str!("exceptions.s"));
 
 pub fn install_exception_table() {
-    // SAFETY: Assume the symbol is properly aligned in assembly
-    let exception_table_addr = unsafe { &__exception_table as *const usize as usize };
+    extern "C" {
+        static __exception_table: usize;
+    }
 
-    VBAR_EL1.set(exception_table_addr as u64);
+    VBAR_EL1.set(&raw const __exception_table as u64);
 }
 
 #[no_mangle]
