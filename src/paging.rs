@@ -3,7 +3,7 @@ use crate::address::{
 };
 use crate::allocator::allocate_page;
 use crate::locking::SpinLock;
-use crate::memory::{MiB, PAGE_SIZE};
+use crate::memory::{dcache_clean_va_range, MiB, PAGE_SIZE};
 use aarch64_cpu::asm::barrier;
 use aarch64_cpu::registers::{
     ID_AA64MMFR0_EL1, MAIR_EL1, SCTLR_EL1, SP, TCR_EL1, TTBR0_EL1, TTBR1_EL1,
@@ -11,6 +11,8 @@ use aarch64_cpu::registers::{
 use tock_registers::fields::FieldValue;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::{register_bitfields, LocalRegisterCopy};
+
+const PTE_SIZE: u64 = size_of::<u64>() as u64;
 
 register_bitfields! {
     u64,
@@ -176,11 +178,17 @@ fn map_page(va: AddressVirtual, pa: AddressPhysical, attributes: FieldValue<u64,
 
         l2_pte.set(page.as_physical().as_u64());
         l2_pte.modify(PTE::VALID::SET + PTE::DESC_TYPE::TABLE_OR_PAGE);
+
+        dcache_clean_va_range(AddressVirtual::new(l2_pte as *const _ as u64), PTE_SIZE);
     }
 
     let l3_pte = &mut l3_pt.pte[l3_idx(va)];
     l3_pte.set(pa.as_u64());
     l3_pte.modify(PTE::VALID::SET + PTE::DESC_TYPE::TABLE_OR_PAGE + attributes);
+
+    // Flush the data cache
+    dcache_clean_va_range(AddressVirtual::new(l3_pte as *const _ as u64), PTE_SIZE);
+    barrier::dsb(barrier::SY);
 }
 
 pub fn map_range(
