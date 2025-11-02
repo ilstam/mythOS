@@ -12,7 +12,7 @@ mod logging;
 mod memory;
 mod paging;
 
-use crate::address::{AddressPhysical, RangePhysical, KSTACKGUARD_CPU0, KSTACKTOP_CPU0};
+use crate::address::{AddressPhysical, RangePhysical, KSTACK_GUARD_CPU0, KSTACK_TOP_CPU0};
 use crate::delay::busy_wait;
 use crate::locking::IRQSpinLock;
 use crate::memory::PAGE_SIZE;
@@ -57,7 +57,7 @@ pub fn jump_to_el1() {
 
     ELR_EL2.set(AddressPhysical::new(pre_main as usize as u64).as_u64());
 
-    SP_EL1.set(KSTACKTOP_CPU0.as_physical().as_u64());
+    SP_EL1.set(KSTACK_TOP_CPU0.as_physical().as_u64());
 
     asm::eret();
 }
@@ -109,15 +109,14 @@ fn blink_onboard_led() {
 }
 
 // The firmware returns a single contiguous RAM region, but we need to account
-// for the subregion where the binary has been loaded plus the stack page plus
-// a stack guard page. For the stack we use the page just before the page where
-// the binary is loaded, and the page just before the stack page must remain
-// unmapped. So essentially we should give 2 regions to the allocator, one from
-// the start of RAM to the beginning of the stack guard page and then from the
-// end of the binary to the end of RAM.
+// for the subregion where the binary has been loaded plus the stack pages plus
+// stack guard pages. The stack and stack guard pages are located just before
+// where the binary is loaded.  So essentially we should give 2 regions to the
+// allocator, one from the start of RAM to the beginning of the stack guard
+// area and then from the end of the binary to the end of RAM.
 fn allocator_init(ram_range: RangePhysical, binary_size: usize) {
-    if ram_range.base() < KSTACKGUARD_CPU0.as_physical() {
-        let size = KSTACKGUARD_CPU0.as_physical().as_u64() - ram_range.base().as_u64();
+    if ram_range.base() < KSTACK_GUARD_CPU0.as_physical() {
+        let size = KSTACK_GUARD_CPU0.as_physical().as_u64() - ram_range.base().as_u64();
         // SAFETY: We trust the math above is correct and the range returned by
         // the firmware is valid
         unsafe {
@@ -125,7 +124,7 @@ fn allocator_init(ram_range: RangePhysical, binary_size: usize) {
         }
     }
 
-    let start = KSTACKTOP_CPU0
+    let start = KSTACK_TOP_CPU0
         .add(binary_size as u64)
         .align_up(PAGE_SIZE)
         .as_physical();

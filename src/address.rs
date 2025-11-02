@@ -10,8 +10,11 @@ const VC_MMU_PERIPHERALS_RANGE: core::ops::RangeInclusive<u32> = 0x7E00_0000..=0
 pub const PERIPHERALS_BASE: AddressVirtual = AddressPhysical::new(0x3F00_0000).as_virtual();
 pub const PERIPHERALS_SIZE: u64 = 0x1000000;
 pub const HIGH_MEMORY_START: AddressVirtual = AddressVirtual::new(_HIGH_MEMORY_START);
-pub const KSTACKTOP_CPU0: AddressVirtual = AddressVirtual::new(0xFFFF_FFFF_C008_0000);
-pub const KSTACKGUARD_CPU0: AddressVirtual = KSTACKTOP_CPU0.subtract(PAGE_SIZE * 2);
+pub const KSTACK_SIZE: u64 = PAGE_SIZE * 8;
+pub const KSTACK_GUARD_SIZE: u64 = PAGE_SIZE * 4;
+pub const KSTACK_TOP_CPU0: AddressVirtual = AddressVirtual::new(0xFFFF_FFFF_C008_0000);
+pub const KSTACK_BOTTOM_CPU0: AddressVirtual = KSTACK_TOP_CPU0.subtract(KSTACK_SIZE);
+pub const KSTACK_GUARD_CPU0: AddressVirtual = KSTACK_BOTTOM_CPU0.subtract(KSTACK_GUARD_SIZE);
 
 #[derive(Clone, Copy, Debug)]
 pub struct AddressPhysical {
