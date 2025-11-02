@@ -24,7 +24,7 @@ impl<T> SpinLock<T> {
         }
     }
 
-    pub fn lock(&self) -> LockGuard<T> {
+    pub fn lock(&self) -> LockGuard<'_, T> {
         // We use two loops here to reduce cache coherence traffic. The swap()
         // is a write operation. It will first move the cache line to an
         // 'exclusive' state and force other CPUs to move their cache line to
@@ -91,7 +91,7 @@ impl<T> IRQSpinLock<T> {
         }
     }
 
-    pub fn lock(&self) -> IRQLockGuard<T> {
+    pub fn lock(&self) -> IRQLockGuard<'_, T> {
         let mut daif = DAIF.get();
         irq::disable_interrupts();
 
