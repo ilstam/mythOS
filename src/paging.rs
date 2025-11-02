@@ -175,14 +175,24 @@ fn map_page(va: AddressVirtual, pa: AddressPhysical, attributes: FieldValue<u64,
         let page = allocate_page().unwrap();
         l3_pt = unsafe { &mut *(page.as_u64() as *mut PageTable) };
 
-        l2_pte.set(page.as_physical().as_u64());
-        l2_pte.modify(PTE::VALID::SET + PTE::DESC_TYPE::TABLE_OR_PAGE);
+        l2_pte.write(
+            PTE::ADDRESS.val(page.as_physical().as_u64() >> 12)
+                + PTE::VALID::SET
+                + PTE::AF::SET
+                + PTE::DESC_TYPE::TABLE_OR_PAGE,
+        );
     }
 
     let l3_pte = &mut l3_pt.pte[l3_idx(va)];
     assert!(!l3_pte.is_set(PTE::VALID));
-    l3_pte.set(pa.as_u64());
-    l3_pte.modify(PTE::VALID::SET + PTE::DESC_TYPE::TABLE_OR_PAGE + attributes);
+
+    l3_pte.write(
+        PTE::ADDRESS.val(pa.as_u64() >> 12)
+            + PTE::VALID::SET
+            + PTE::AF::SET
+            + PTE::DESC_TYPE::TABLE_OR_PAGE
+            + attributes,
+    );
 }
 
 pub fn map_range(
@@ -221,10 +231,8 @@ pub fn setup_runtime_paging(ram_range: RangePhysical) {
     // rodata, code, etc. Also unmap the stack guard pages.
 
     // Map all RAM
-    let attributes = PTE::ATTR_INDEX.val(MairType::Normal as u64)
-        + PTE::SH::INNER_SHAREABLE
-        + PTE::AF::SET
-        + PTE::UXN::SET;
+    let attributes =
+        PTE::ATTR_INDEX.val(MairType::Normal as u64) + PTE::SH::INNER_SHAREABLE + PTE::UXN::SET;
     map_range(
         ram_range.base().as_virtual(),
         ram_range.base(),
@@ -235,7 +243,6 @@ pub fn setup_runtime_paging(ram_range: RangePhysical) {
     // Map the peripherals space
     let attributes = PTE::ATTR_INDEX.val(MairType::Device as u64)
         + PTE::SH::OUTER_SHAREABLE
-        + PTE::AF::SET
         + PTE::PXN::SET
         + PTE::UXN::SET;
     map_range(
