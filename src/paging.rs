@@ -159,6 +159,7 @@ fn l3_idx(va: AddressVirtual) -> usize {
     ((va.as_u64() >> 12) & 0x1ff) as usize
 }
 
+/// Panics if the page is mapped already
 fn map_page(va: AddressVirtual, pa: AddressPhysical, attributes: FieldValue<u64, PTE::Register>) {
     let l2_pt = &mut *L2_PT.lock();
     let l2_pte = &mut l2_pt.pte[l2_idx(va)];
@@ -179,6 +180,7 @@ fn map_page(va: AddressVirtual, pa: AddressPhysical, attributes: FieldValue<u64,
     }
 
     let l3_pte = &mut l3_pt.pte[l3_idx(va)];
+    assert!(!l3_pte.is_set(PTE::VALID));
     l3_pte.set(pa.as_u64());
     l3_pte.modify(PTE::VALID::SET + PTE::DESC_TYPE::TABLE_OR_PAGE + attributes);
 }
