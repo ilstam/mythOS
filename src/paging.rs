@@ -1,5 +1,6 @@
 use crate::address::{
-    AddressPhysical, AddressVirtual, RangePhysical, PERIPHERALS_BASE, PERIPHERALS_SIZE,
+    AddressPhysical, AddressVirtual, KSTACK_BOTTOM_CPU0, KSTACK_SIZE, PERIPHERALS_BASE,
+    PERIPHERALS_SIZE,
 };
 use crate::allocator::allocate_page;
 use crate::locking::SpinLock;
@@ -205,6 +206,8 @@ pub fn map_range(
         return;
     }
 
+    assert!(size.is_multiple_of(PAGE_SIZE));
+
     loop {
         map_page(va, pa, attributes);
         size = size.saturating_sub(PAGE_SIZE);
@@ -219,28 +222,94 @@ pub fn map_range(
 
 /// Setup the runtime page tables used by the kernel after early boot and after
 /// initialising the page allocator. The runtime page tables use a 4KiB
-/// translation granule and identity map all RAM and the peripherals space
-/// using TTBR1_EL1. This function disables TTBR0_EL1 walks.
-pub fn setup_runtime_paging(ram_range: RangePhysical) {
+/// translation granule and identity map all RAM (except the stack guard areas)
+/// and the peripherals space using TTBR1_EL1. This function disables TTBR0_EL1
+/// walks.
+pub fn setup_runtime_paging() {
     let id_aa64mmfr0 = ID_AA64MMFR0_EL1.extract();
     if id_aa64mmfr0.read(ID_AA64MMFR0_EL1::TGran4) != ID_AA64MMFR0_EL1::TGran4::Supported.into() {
         panic!("The MMU doesn't support 4KiB translation granule");
     }
 
-    // TODO: Use more fine grained regions with the appropriate attributes for
-    // rodata, code, etc. Also unmap the stack guard pages.
+    extern "C" {
+        static __text_start: u64;
+        static __text_end: u64;
+        static __rodata_start: u64;
+        static __rodata_end: u64;
+        static __data_start: u64;
+        static __bss_end: u64;
+    }
 
-    // Map all RAM
-    let attributes =
-        PTE::ATTR_INDEX.val(MairType::Normal as u64) + PTE::SH::INNER_SHAREABLE + PTE::UXN::SET;
+    let text_start = AddressVirtual::new(&raw const __text_start as u64);
+    let text_end = AddressVirtual::new(&raw const __text_end as u64);
+    let rodata_start = AddressVirtual::new(&raw const __rodata_start as u64);
+    let rodata_end = AddressVirtual::new(&raw const __rodata_end as u64);
+    let data_start = AddressVirtual::new(&raw const __data_start as u64);
+    let bss_end = AddressVirtual::new(&raw const __bss_end as u64);
+
+    // Map .text as RO and executable
+    let attributes = PTE::ATTR_INDEX.val(MairType::Normal as u64)
+        + PTE::SH::INNER_SHAREABLE
+        + PTE::UXN::SET
+        + PTE::AP::RO_KERNEL;
     map_range(
-        ram_range.base().as_virtual(),
-        ram_range.base(),
-        ram_range.size(),
+        text_start,
+        text_start.as_physical(),
+        text_end.as_u64() - text_start.as_u64(),
         attributes,
     );
 
-    // Map the peripherals space
+    // Map .rodata as RO and non-executable
+    let attributes = PTE::ATTR_INDEX.val(MairType::Normal as u64)
+        + PTE::SH::INNER_SHAREABLE
+        + PTE::UXN::SET
+        + PTE::PXN::SET
+        + PTE::AP::RO_KERNEL;
+    map_range(
+        rodata_start,
+        rodata_start.as_physical(),
+        rodata_end.as_u64() - rodata_start.as_u64(),
+        attributes,
+    );
+
+    // Map .data and .bss as RW and non-executable
+    let attributes = PTE::ATTR_INDEX.val(MairType::Normal as u64)
+        + PTE::SH::INNER_SHAREABLE
+        + PTE::UXN::SET
+        + PTE::PXN::SET
+        + PTE::AP::RW_KERNEL;
+    map_range(
+        data_start,
+        data_start.as_physical(),
+        bss_end.as_u64() - data_start.as_u64(),
+        attributes,
+    );
+
+    // Map the stack as RW and non-executable
+    let attributes = PTE::ATTR_INDEX.val(MairType::Normal as u64)
+        + PTE::SH::INNER_SHAREABLE
+        + PTE::UXN::SET
+        + PTE::AP::RW_KERNEL;
+    map_range(
+        KSTACK_BOTTOM_CPU0,
+        KSTACK_BOTTOM_CPU0.as_physical(),
+        KSTACK_SIZE,
+        attributes,
+    );
+
+    // Map the rest of RAM as RW and non-executable
+    let attributes =
+        PTE::ATTR_INDEX.val(MairType::Normal as u64) + PTE::SH::INNER_SHAREABLE + PTE::UXN::SET;
+    for region in crate::allocator::get_regions() {
+        map_range(
+            region.base().as_virtual(),
+            region.base(),
+            region.size(),
+            attributes,
+        );
+    }
+
+    // Map the peripherals space as RW and non-executable
     let attributes = PTE::ATTR_INDEX.val(MairType::Device as u64)
         + PTE::SH::OUTER_SHAREABLE
         + PTE::PXN::SET

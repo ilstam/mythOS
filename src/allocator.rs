@@ -4,6 +4,7 @@ use crate::memory::PAGE_SIZE;
 use heapless::Vec;
 
 static PAGE_ALLOCATOR: SpinLock<PageAllocator<PAGE_SIZE>> = SpinLock::new(PageAllocator::new());
+const NUM_REGIONS: usize = 2;
 
 #[derive(Debug)]
 pub enum AllocError {
@@ -13,7 +14,7 @@ pub enum AllocError {
 // The page allocator is implemented using a linked list. Each free page in its
 // first 64 bytes stores a pointer (virtual address) to the next free page.
 struct PageAllocator<const PAGE_SZ: u64> {
-    regions: Vec<RangePhysical, 2>,
+    regions: Vec<RangePhysical, NUM_REGIONS>,
     head: u64, // Pointer to a free page
     free_pages: usize,
 }
@@ -48,6 +49,10 @@ impl<const PAGE_SZ: u64> PageAllocator<PAGE_SZ> {
             size -= PAGE_SZ;
             self.free_pages += 1;
         }
+    }
+
+    fn get_regions(&self) -> Vec<RangePhysical, NUM_REGIONS> {
+        self.regions.clone()
     }
 
     fn allocate_page(&mut self) -> Result<AddressVirtual, AllocError> {
@@ -87,6 +92,11 @@ pub unsafe fn add_region(region: &RangePhysical) {
     crate::println!("Adding {num_pages} pages to physical memory allocator: {region:#x?}");
     let mut p = PAGE_ALLOCATOR.lock();
     p.add_region(region);
+}
+
+pub fn get_regions() -> Vec<RangePhysical, NUM_REGIONS> {
+    let p = PAGE_ALLOCATOR.lock();
+    p.get_regions()
 }
 
 /// Allocates a 4KiB page with all bytes set to 0.
